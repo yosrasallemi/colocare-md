@@ -17,64 +17,71 @@ In some healthcare environments, increasing workloads, limited infrastructure, a
 ## Solution
 
 ColoCare MD is an offline AI-powered clinical assistant designed to support physicians in colorectal cancer workflows.
-ColoCare MD use **Gemma 4 via Ollama** to 
 
-Main capabilities:
+ColoCare MD uses **Gemma 4 via Ollama** to:
 
-- Medical report understanding and Automatically analyze medical PDF reports
+### Main capabilities
+
+- Medical report understanding and automatically analyze medical PDF reports
 - Colonoscopy lesion detection
 - Priority scoring
 - Fully offline deployment
 - Extract structured clinical data (JSON)
 - Apply ESMO/TNM clinical rules
-- Calculate priority scores (0-100)
+- Calculate priority scores (0–100)
 - Recommend surgical or oncological orientation
 - Explain every decision (Explainability Layer)
 - Require physician validation (Human-in-the-loop)
-
-
 
 ---
 
 ## Architecture
 
-Medical reports or  Medical images or Medical reports +  Medical images
+Medical reports  
+or  
+Medical images  
+or  
+Medical reports + Medical images  
 
 ↓
 
-YOLO lesion detection
+YOLO lesion detection  
 
 ↓
 
-Gemma 4 analysis
+Gemma 4 analysis  
 
 ↓
 
-Clinical report generation
+Clinical report generation  
 
 ↓
 
-Physician validation
+Physician validation  
 
 ---
 
 ## Features
 
 ### Medical report analysis
+
 - Extract structured clinical information
 - Generate clinical summaries
 - Identify important findings
 
 ### Image analysis
+
 - Colonoscopy lesion detection
 - Visual support for physicians
 
 ### Clinical assistance
+
 - Priority scoring
 - Specialist orientation
 - Explainable recommendations
 
 ### Human-in-the-loop
+
 - Physicians validate all final decisions
 
 ---
@@ -115,15 +122,14 @@ ollama pull gemma4
 streamlit run app.py
 ```
 
----
-
 ### Requirements
 
 - Python 3.11+
 - Ollama
 - Gemma model
 - Streamlit
-```
+
+---
 
 ## Datasets
 
@@ -153,11 +159,12 @@ Datasets are referenced for research purposes and are not included in this repos
 - Post-operative outcome prediction and follow-up support after surgical interventions
 
 ---
+
 ## Hackathon
 
-- **Competition**: Gemma 4 Good Hackathon — Google/Kaggle 2026
-- **Track**: Health & Sciences
-- **Technology**: Gemma 4 via Ollama (offline/edge deployment)
+- **Competition:** Gemma 4 Good Hackathon — Google/Kaggle 2026
+- **Track:** Health & Sciences
+- **Technology:** Gemma 4 via Ollama (offline/edge deployment)
 
 ---
 
@@ -167,4 +174,4 @@ This system provides AI clinical decision support only.
 
 ColoCare MD is not designed to replace physicians.
 
-Physicians remain responsible for all final medical decisions.
+Physicians remain responsible for all final medical decisions. 

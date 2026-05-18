@@ -1,11 +1,11 @@
 # modules/gemma_client.py
-# Switch rapide : MODEL_TEXT = "gemma3:4b" pour dev, "gemma4:latest" pour prod
+
 
 import ollama
 
-# ══ SWITCH ICI UNIQUEMENT ══
-MODEL_TEXT   = "gemma3:4b"      # changer en "gemma4:latest" quand RAM ok
-MODEL_VISION = "gemma3:4b"      # idem
+
+MODEL_TEXT   = "gemma4"     
+MODEL_VISION = "gemma4"      
 # ═══════════════════════════
 
 HORS_DOMAINE_KEYWORDS = [

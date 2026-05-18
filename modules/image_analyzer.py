@@ -1,5 +1,5 @@
 # modules/image_analyzer.py
-# Analyse images médicales — Gemma Vision
+
 
 import json
 import os

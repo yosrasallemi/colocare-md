@@ -25,7 +25,52 @@ from modules.database import (
 from modules.conversation_memory import (
     create_conversation, add_message, get_context_summary
 )
- 
+
+# ════════════════════════════════════════════════════════════════
+# HELPERS — à placer AVANT le bloc elif app
+# ════════════════════════════════════════════════════════════════
+def _do_save(pid, pa, patient_nom, patient_type, medical_data, score_data,
+             orientation, explanation, recurrence, validation, completude,
+             notes_medecin, val_status, redirect):
+    from modules.database import delete_pending_analysis
+    from datetime import datetime
+    patient_record = {
+        "id": pid, "nom": patient_nom, "type": patient_type,
+        "date_analyse": datetime.now().strftime("%d/%m/%Y %H:%M"),
+        "statut": "actif",
+        "score": score_data.get("score", 0),
+        "stade": f"{medical_data.get('stade_T','?')}{medical_data.get('stade_N','?')}{medical_data.get('stade_M','?')}",
+        "stage_group": orientation.get("stage_group", "Inconnu"),
+        "orientation": orientation.get("decision", "incertain"),
+        "delai": orientation.get("delai", "À définir"),
+        "urgence": score_data.get("label", ""),
+        "docs_count": pa.get("docs_count", 0),
+        "images_count": pa.get("images_count", 0),
+        "validation_medecin": val_status,
+        "validation_date": datetime.now().strftime("%d/%m/%Y %H:%M"),
+        "medical_data": {**medical_data, "notes_medecin": notes_medecin},
+        "score_data": score_data,
+        "orientation_data": orientation,
+        "explanation": explanation,
+        "recurrence": recurrence,
+        "validation": validation,
+        "completude": completude,
+        "image_results": [],   # images jamais stockées
+        "fusion": pa.get("fusion", {})
+    }
+    save_patient(patient_record)
+    add_log(pid, f"{val_status}_enregistre", f"Score:{score_data.get('score',0)}")
+    delete_pending_analysis(pid)
+    st.session_state.pending_patient_id = None
+    st.session_state.pending_notes = ""
+    if redirect == "dossier":
+        st.session_state.current_patient_id = pid
+        st.session_state.app_page = "dossier"
+    else:
+        st.session_state.app_page = "dashboard"
+    st.rerun()
+
+_save_patient_and_redirect = _do_save 
 # ══════════════════════════════════════════
 # CONFIG
 # ══════════════════════════════════════════
@@ -501,8 +546,6 @@ if "current_patient_id" not in st.session_state:
     st.session_state.current_patient_id = None
 if "conversation" not in st.session_state:
     st.session_state.conversation = create_conversation()
-if "langue" not in st.session_state:
-    st.session_state.langue = "Français"
 if "app_page" not in st.session_state:
     st.session_state.app_page = "dashboard"
 if "edit_mode" not in st.session_state:
@@ -511,6 +554,8 @@ if "pending_patient_id" not in st.session_state:
     st.session_state.pending_patient_id = None
 if "pending_notes" not in st.session_state:
     st.session_state.pending_notes = ""
+if "langue" not in st.session_state:
+    st.session_state.langue = "Français"
  
 # ══════════════════════════════════════════
 # HELPERS
@@ -1115,98 +1160,379 @@ html, body {{ margin: 0; padding: 0; font-family: 'Poppins', sans-serif; backgro
 </html>"""
 
     components.html(guide_html, height=2800, scrolling=True)
+#-------- Assistant clinique ----------------# 
 
-# ════════════════════════════════════════════════════════════════
-# ══════════════════ APPLICATION CLINIQUE ════════════════════════
-# ════════════════════════════════════════════════════════════════
+
 elif st.session_state.current_page == "app":
 
-    # ── FIX 4d : Sidebar stable ──────────────────────────────────
-    st.markdown("""
-    <style>
+    
+    import base64 
+    import base64 as _b64
 
-   /* Sidebar reset */
-   section[data-testid="stSidebar"]{
-    display:block !important;
-    visibility:visible !important;
-    opacity:1 !important;
-    transform:none !important;
-    left:0 !important;
-    margin-left:0 !important;
-    width:280px !important;
-    background:#ffffff !important;
-    border-right:1px solid #E5E7EB !important;
-    }
+    def icon_b64(path: str) -> str:
+        if not os.path.exists(path):
+            return ""
+        ext = path.split(".")[-1].lower()
+        mime = "image/svg+xml" if ext == "svg" else f"image/{ext}"
+        with open(path, "rb") as f:
+            return f"data:{mime};base64,{base64.b64encode(f.read()).decode()}"
+    ico_chat   = icon_b64("assets/icons/chat.png")
+    ico_ajout  = icon_b64("assets/icons/ajout.svg")
+    
+    # ── helpers icônes ──────────────────────────────────────────
+    def _icon(name, w=18, h=18, style=""):
+        path = f"assets/icons/{name}"
+        if not os.path.exists(path):
+            return ""
+        ext = path.split(".")[-1].lower()
+        mime = "image/svg+xml" if ext == "svg" else f"image/{ext}"
+        with open(path, "rb") as f:
+            b64 = _b64.b64encode(f.read()).decode()
+        return f'<img src="data:{mime};base64,{b64}" width="{w}" height="{h}" style="vertical-align:middle;{style}">'
 
-    section[data-testid="stSidebar"] > div{
-     display:block !important;
-     visibility:visible !important;
-     opacity:1 !important;
-     width:280px !important;
-    }
+    # ── Session state guards ─────────────────────────────────────
+    if "pending_patient_id" not in st.session_state:
+        st.session_state.pending_patient_id = None
+    if "pending_notes" not in st.session_state:
+        st.session_state.pending_notes = ""
+    if "edit_mode" not in st.session_state:
+        st.session_state.edit_mode = False
 
-    /* Main content */
-    .block-container{
-      max-width:1200px !important;
-      padding-top:1rem !important;
-    }  
-
-    </style>
-    """, unsafe_allow_html=True)
-
-    # Urgents count
+    # ── Urgents count ────────────────────────────────────────────
     all_patients_global = get_all_patients()
     urgents_count = len([
         p for p in all_patients_global
         if p.get("score", 0) >= 70 and p.get("statut") == "actif"
     ])
 
-    # ── SIDEBAR ──────────────────────────────────────────────────
+    # ════════════════════════════════════════════════════════════
+    # CSS
+    # ════════════════════════════════════════════════════════════
+    st.markdown("""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Poppins:wght@500;600;700&display=swap');
+
+    html,body,.stApp { background:#FAFAFA !important; }
+    #MainMenu,footer,header,.stDeployButton { visibility:hidden !important; display:none !important; }
+    .block-container { padding:0 !important; max-width:100% !important; }
+
+    /* ── SIDEBAR always visible ── */
+    section[data-testid="stSidebar"] {
+        position:fixed !important;
+        top:0 !important; left:0 !important;
+        height:100vh !important;
+        width:220px !important;
+        min-width:220px !important;
+        background:#FFFFFF !important;
+        border-right:1px solid #F0F0F0 !important;
+        box-shadow:none !important;
+        z-index:1000 !important;
+        overflow-y:auto !important;
+        overflow-x:hidden !important;
+        display:block !important;
+        visibility:visible !important;
+        opacity:1 !important;
+        transform:none !important;
+    }
+    section[data-testid="stSidebar"] > div:first-child {
+        padding:0 !important;
+        width:220px !important;
+    }
+    /* Force sidebar visible even when collapsed */
+    section[data-testid="stSidebar"][aria-expanded="false"] {
+        width:220px !important;
+        min-width:220px !important;
+        display:block !important;
+        visibility:visible !important;
+        transform:none !important;
+        left:0 !important;
+    }
+    [data-testid="collapsedControl"] {
+        display:none !important;
+    }
+
+   /* Sidebar buttons normal */
+   section[data-testid="stSidebar"] .stButton > button{
+
+    opacity:1 !important;
+    position:relative !important;
+    width:100% !important;
+
+    margin-top:0 !important;
+    padding:6px !important;
+
+    background:transparent !important;
+    border:none !important;
+
+    box-shadow:none !important;
+    }
+
+    /* ── Gap sidebar ── */
+    section[data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap:0 !important; }
+    section[data-testid="stSidebar"] [data-testid="element-container"] { margin:0 !important; padding:0 !important; }
+
+    /* ── Bouton primary ── */
+    [data-testid="baseButton-primary"] {
+        background:#2F80ED !important;
+        color:white !important;
+        border:none !important;
+        border-radius:8px !important;
+        padding:7px 14px !important;
+        font-family:'Inter',sans-serif !important;
+        font-size:.82rem !important;
+        font-weight:500 !important;
+        box-shadow:0 1px 4px rgba(47,128,237,.2) !important;
+        opacity:1 !important;
+        position:relative !important;
+    }
+    [data-testid="baseButton-primary"]:hover { background:#1a6fd4 !important; }
+
+    /* ── Boutons contenu principal ── */
+    .stButton > button {
+        background:#FFFFFF !important;
+        border:1px solid #ECEEF2 !important;
+        border-radius:8px !important;
+        padding:6px 14px !important;
+        font-family:'Inter',sans-serif !important;
+        font-size:.82rem !important;
+        color:#1A1A2E !important;
+        font-weight:400 !important;
+        box-shadow:none !important;
+        opacity:1 !important;
+        position:relative !important;
+        transition:background .15s !important;
+    }
+    .stButton > button:hover {
+        background:#F5F5F5 !important;
+        border-color:#D1D5DB !important;
+    }
+    
+    .navbar{
+      min-height:65px !important;
+      padding:8px 20px !important;
+    }
+    /* ── inputs ── */
+    .stTextInput>div>div,.stSelectbox>div>div,.stTextArea>div>div {
+        border-radius:8px !important;
+        border-color:#E8EDF2 !important;
+        background:#FFFFFF !important;
+        font-family:'Inter',sans-serif !important;
+        font-size:.875rem !important;
+    }
+
+    /* ── metrics ── */
+    [data-testid="stMetric"] {
+        background:#FFFFFF !important;
+        border:1px solid #F0F0F0 !important;
+        border-radius:10px !important;
+        padding:14px 16px !important;
+    }
+    [data-testid="stMetricLabel"] { font-size:.68rem !important; text-transform:uppercase; letter-spacing:.06em; color:#8A8A8A !important; font-weight:500 !important; }
+    [data-testid="stMetricValue"] { font-size:1.2rem !important; font-weight:600 !important; color:#1A1A2E !important; }
+
+    /* ── alerts ── */
+    [data-testid="stAlert"] { border-radius:8px !important; font-size:.82rem !important; font-family:'Inter',sans-serif !important; }
+
+    hr { border-color:#F0F0F0 !important; margin:12px 0 !important; }
+    .stChatMessage { background:#FFFFFF !important; border:1px solid #F0F0F0 !important; border-radius:8px !important; }
+
+    /* ── patient cards ── */
+    .patient-card {
+        background:#FFFFFF; border:1px solid #F0F0F0; border-radius:10px;
+        padding:14px 18px; margin-bottom:8px; font-family:'Inter',sans-serif;
+    }
+    .patient-card.urgent      { border-left:3px solid #DC2626; }
+    .patient-card.semi-urgent { border-left:3px solid #D97706; }
+    .patient-card.stable      { border-left:3px solid #059669; }
+
+    .badge { display:inline-block; padding:2px 8px; border-radius:20px; font-size:.7rem; font-weight:500; }
+    .badge-urgent  { background:#FEE2E2; color:#DC2626; }
+    .badge-success { background:#D1FAE5; color:#059669; }
+    .badge-info    { background:#EEF5FD; color:#2F80ED; }
+
+    /* ── rapport ── */
+    .report-section { background:#FFFFFF; border:1px solid #F0F0F0; border-radius:10px; padding:18px 22px; margin-bottom:12px; font-family:'Inter',sans-serif; }
+    .report-label { font-size:.68rem; font-weight:600; text-transform:uppercase; letter-spacing:.08em; color:#8A8A8A; margin-bottom:8px; }
+    .report-value { font-size:.875rem; color:#1A1A2E; line-height:1.7; }
+    .esmo-block { background:#F8FBFF; border-left:3px solid #2F80ED; border-radius:0 8px 8px 0; padding:12px 16px; font-size:.82rem; color:#525252; line-height:1.8; margin:8px 0; }
+    .section-label { font-size:.72rem; font-weight:600; text-transform:uppercase; letter-spacing:.08em; color:#8A8A8A; margin:16px 0 6px; }
+
+    section[data-testid="stMain"]{
+      margin-left:220px !important;
+      width:calc(100vw - 220px) !important;
+      max-width:calc(100vw - 220px) !important;
+      overflow-x:hidden !important;
+      background:#FFFFFF !important;
+      padding:0 !important;
+    }
+
+    
+    /* largeur contenu */
+    section[data-testid="stMain"] .block-container{
+      max-width:calc(100vw - 260px) !important;
+      overflow-x:hidden !important;
+    }
+
+    /* colonnes */
+    [data-testid="column"]{
+      min-width:0 !important;
+       flex:1 1 auto !important;
+    }
+
+    /* selectbox */
+    .stSelectbox{
+      width:100% !important;
+    }
+
+    /* espace intérieur des pages */
+     section[data-testid="stMain"] > div{
+      padding:8px 24px 24px 24px !important;
+      background:#FFFFFF !important;
+    }
+
+    /* contenu principal */
+    .block-container{
+      max-width:100% !important;
+      padding:8px 20px 20px 20px !important;
+      background:#FFFFFF !important;
+    }
+
+    /* conteneur page */
+    .page-container{
+      background:#FFFFFF !important;
+      padding:24px !important;
+      margin-top:0px !important;
+      padding-top:8px !important;         
+      border-radius:12px;
+      margin:8px 12px 24px 12px;
+    }
+    div[data-testid="stVerticalBlock"]{
+      gap:10px !important;
+    }
+                  
+    /* évite que la dernière colonne sorte */
+    div[data-testid="stHorizontalBlock"]{
+      width:100% !important;
+      gap:18px !important;
+    }
+
+    
+                           
+    ::-webkit-scrollbar { width:4px; }
+    ::-webkit-scrollbar-thumb { background:#E8EDF2; border-radius:2px; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # ════════════════════════════════════════════════════════════
+    # SIDEBAR
+    # ════════════════════════════════════════════════════════════
+    # Colle ce st.markdown JUSTE AVANT la sidebar (with st.sidebar:)
+    st.markdown("""
+    <style>
+    /* Fix page assistant — même offset que les autres pages */
+    section[data-testid="stMain"] {
+        margin-left: 220px !important;
+        width: calc(100vw - 220px) !important;
+        max-width: calc(100vw - 220px) !important;
+        overflow-x: hidden !important;
+    }
+    section[data-testid="stMain"] > div {
+        padding: 8px 24px 24px 24px !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
     with st.sidebar:
-        if os.path.exists("assets/logos/logo.png"):
-            st.image("assets/logos/logo.png", width=120)
+        logo_p = "assets/logos/logo.png"
+        # Logo
+        st.markdown('<div style="display:flex; justify-content:center; align-items:center; margin-top:-65px;margin-left:12px; margin-bottom:0px;padding:0;"> ''', unsafe_allow_html=True)
+        
+        if os.path.exists(logo_p):
+              st.image(
+            logo_p,
+            width=250,
+            use_container_width=False )
         else:
-            st.markdown('<div style="font-size:1.2rem;font-weight:700;color:#2F80ED;padding:16px 0 8px;">🏥 ColoCare MD</div>', unsafe_allow_html=True)
+            st.markdown('<span style="font-family:Poppins,sans-serif;font-size:1rem;font-weight:700;color:#2F80ED;">ColoCare MD</span>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-        st.divider()
+        st.markdown('<hr style="margin:4px 16px 10px;border-color:#F0F0F0;">',unsafe_allow_html=True )
 
-        # ── FIX 4a : Vision Lab supprimé ──
-        nav_items = [
-            ("", "Home", "dashboard"),
-            ("", "Dossier patient", "dossier"),
-        ]
+        icon_home    = _icon("home.png",    16, 16, "margin-right:8px;opacity:.65;")
+        icon_dossier = _icon("dossier.png", 16, 16, "margin-right:8px;opacity:.65;")
 
-        for icon, label, page_key in nav_items:
-            is_active = st.session_state.app_page == page_key
-            btn_label = f"{' ' if is_active else ''}{icon} {label}"
-            if st.button(btn_label, key=f"nav_{page_key}", use_container_width=True):
-                st.session_state.app_page = page_key
-                st.rerun()
+        # ── Home ──────────────────────────────────────────────
+        is_home = st.session_state.app_page == "dashboard"
+        home_bg = "background:#EEF5FD;border-radius:7px;" if is_home else ""
+        home_c  = "color:#2F80ED;font-weight:500;" if is_home else "color:#1A1A2E;font-weight:400;"
+        st.markdown(f"""
+        <div style="position:relative;padding:0 10px;margin-bottom:2px;">
+            <div style="display:flex;align-items:center;padding:8px 10px;{home_bg}border-radius:7px;cursor:pointer;">
+                {icon_home}
+                <span style="font-family:'Inter',sans-serif;font-size:.855rem;{home_c}">Home</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("", key="nav_dashboard_real",use_container_width=True ):
+          st.session_state.app_page="dashboard"
+          st.rerun()
 
-        st.divider()
 
-        st.markdown('<div style="font-size:0.72rem;font-weight:600;color:#94A3B8;text-transform:uppercase;letter-spacing:0.06em;padding:4px 0 8px;">Assistant clinique</div>', unsafe_allow_html=True)
+        # ── Dossier patient ────────────────────────────────────
+        is_dos = st.session_state.app_page == "dossier"
+        dos_bg = "background:#EEF5FD;border-radius:7px;" if is_dos else ""
+        dos_c  = "color:#2F80ED;font-weight:500;" if is_dos else "color:#1A1A2E;font-weight:400;"
+        st.markdown(f"""
+        <div style="position:relative;padding:0 10px;margin-bottom:2px;">
+            <div style="display:flex;align-items:center;padding:8px 10px;{dos_bg}border-radius:7px;cursor:pointer;">
+                {icon_dossier}
+                <span style="font-family:'Inter',sans-serif;font-size:.855rem;{dos_c}">Dossier patient</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("", key="nav_dossier_real", use_container_width=True):
+            st.session_state.app_page = "dossier"
+            st.rerun()
 
-        col_asst, col_plus = st.columns([3, 1])
+        st.markdown('<hr style="margin:6px 16px;border-color:#F0F0F0;">', unsafe_allow_html=True)
+
+        # ── Assistant clinique ─────────────────────────────────
+    
+        col_lbl, col_plus = st.columns([5, 1])
+        with col_lbl:
+            # Label non cliquable
+            st.markdown('<p style="font-size:0.7rem;font-weight:600;color:#8A8FA3;text-transform:uppercase;letter-spacing:0.06em;margin:0;padding:4px 0 2px 0;">Assistant clinique</p>', unsafe_allow_html=True)
         with col_plus:
-            if st.button("＋", key="new_conv_sb", help="Nouvelle discussion"):
+            # Icône ＋ cliquable → nouvelle conversation
+            if ico_ajout:
+                st.markdown(f'<div style="padding-top:4px;cursor:pointer;"><img src="{ico_ajout}" style="width:14px;height:14px;opacity:0.55;"></div>', unsafe_allow_html=True)
+            if st.button("＋", key="new_conv_sb"):
                 save_conversation_db(st.session_state.conversation)
                 st.session_state.conversation = create_conversation()
                 st.session_state.app_page = "assistant"
                 st.rerun()
-        with col_asst:
-            if st.button(" Assistant", key="nav_assistant", use_container_width=True):
-                st.session_state.app_page = "assistant"
-                st.rerun()
 
+        # ── Liste conversations — icône + nom, sans boutons visibles ──
         saved_convs = get_all_conversations_db()
         for i, conv in enumerate(saved_convs[:6]):
             is_active_conv = conv["id"] == st.session_state.conversation.get("id", "")
-            dot = "🟢" if is_active_conv else "⚪"
-            col_cv, col_del = st.columns([4, 1])
+            short_title = conv['titre'][:18] + "…" if len(conv['titre']) > 18 else conv['titre']
+
+            chat_ico = f'<img src="{ico_chat}" style="width:14px;height:14px;margin-right:7px;vertical-align:middle;opacity:{"0.9" if is_active_conv else "0.5"}">' if ico_chat else "💬 "
+
+            col_cv, col_del = st.columns([5, 1])
             with col_cv:
-                short_title = conv['titre'][:18] + "..." if len(conv['titre']) > 18 else conv['titre']
-                if st.button(f"{dot} d{i+1} — {short_title}", key=f"cv_{conv['id']}", use_container_width=True):
+                st.markdown(f"""
+                <div style="display:flex;align-items:center;padding:5px 8px;border-radius:7px;
+                    background:{'#EEF2FF' if is_active_conv else 'transparent'};
+                    cursor:pointer;margin-bottom:1px;">
+                    {chat_ico}
+                    <span style="font-size:0.78rem;color:{'#3B82F6' if is_active_conv else '#1E1E1E'};
+                    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100px;">
+                        {short_title}
+                    </span>
+                </div>
+                """, unsafe_allow_html=True)
+                if st.button(short_title, key=f"cv_{conv['id']}", use_container_width=True):
                     save_conversation_db(st.session_state.conversation)
                     st.session_state.conversation = conv
                     st.session_state.app_page = "assistant"
@@ -1216,62 +1542,165 @@ elif st.session_state.current_page == "app":
                     delete_conversation_db(conv["id"])
                     st.rerun()
 
-        st.divider()
+        st.markdown("<div style='flex:1'></div>", unsafe_allow_html=True)
+        st.markdown('<hr style="border-color:#ECEEF2;margin:6px 0;">', unsafe_allow_html=True)
+
+
+        st.markdown(
+           """
+           <div style="
+             position:fixed; bottom:15px; left:12px; width:190px;padding:0; z-index:999;
+            ">
+
+           <div style="
+             background:#F8F8F8;
+             border-radius:12px;
+             padding:14px;
+             box-sizing:border-box;
+           ">
+
+           <div style="
+             font-family:Inter,sans-serif;
+             font-size:.78rem;
+             font-weight:600;
+             color:#1A1A2E;
+            margin-bottom:6px;
+           ">
+            Attention </div>
+
+          <div style="
+            font-family:Inter,sans-serif; font-size:.72rem; color:#8A8A8A; line-height:1.6;margin-bottom:12px;">
+            AI decision support only.
+            Le médecin valide toujours. </div> """,
+
+        unsafe_allow_html=True
+        )
+
+
+        st.markdown("</div></div>", unsafe_allow_html=True)
+
+    # ════════════════════════════════════════════════════════════
+    # NAVBAR — titre + notif + bouton dans la barre
+    # ════════════════════════════════════════════════════════════
+    
+    nav_col1, nav_col2 = st.columns([6,2])
+
+    with nav_col1:
+
+      page_titles = {
+        "dashboard": "Dashboard",
+        "dossier": "Dossier patient",
+        "assistant": "Assistant clinique",
+        "nouveau": "Nouveau patient",
+       }
+
+      st.markdown(f"""
+      <div style="
+        background:#FFFFFF;
+        border-bottom:1px solid #ECEEF2;
+        padding:12px 24px;
+        border-radius:10px 0 0 0;
+        min-height:55px;
+        display:flex;
+        align-items:center;
+      ">
+        <span style="
+            font-family:Poppins,sans-serif;
+            font-size:.92rem;
+            font-weight:400;
+            color:#1E1E1E;
+        ">
+        {page_titles.get(st.session_state.app_page,'ColoCare MD')}
+        </span>
+      </div>
+      """, unsafe_allow_html=True)
+
+
+    with nav_col2:
+
+      nav_r1, nav_r2 = st.columns([1,3])
+
+    with nav_r1:
+
+        notif_html = _icon("notif.png",18,18)
+
+        badge=""
 
         if urgents_count > 0:
-            st.markdown(f"""
-            <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:10px 12px;margin-bottom:8px;">
-                <span style="color:#DC2626;font-weight:600;font-size:0.82rem;">🔴 {urgents_count} patient(s) urgent(s)</span>
-            </div>
-            """, unsafe_allow_html=True)
+            badge = (
+             f'<div style="'
+             f'position:absolute;'
+             f'top:-6px;'
+             f'right:-6px;'
+             f'background:#EF4444;'
+             f'color:white;'
+             f'border-radius:50%;'
+             f'width:16px;'
+             f'height:16px;'
+             f'font-size:9px;'
+             f'font-weight:700;'
+             f'display:flex;'
+             f'align-items:center;'
+             f'justify-content:center;'
+             f'">{urgents_count}</div>'
+            
+            )
 
-        st.session_state.langue = st.selectbox("🌐", ["Français", "English"], label_visibility="collapsed")
-
-        st.divider()
-        st.markdown('<div style="font-size:0.72rem;color:#94A3B8;line-height:1.5;padding:4px 0;">⚠️ AI decision support only<br>Le médecin valide toujours.</div>', unsafe_allow_html=True)
-
-        if st.button("🏠 Accueil", use_container_width=True, key="back_home"):
-            go_to("landing")
-
-    # ── FIX 4b : Navbar blanche (remplace topbar bleue) ──────────
-    col_nav1, col_nav2 = st.columns([3, 2])
-    with col_nav1:
-        page_titles = {
-            "dashboard": "Dashboard",
-            "dossier": "Dossier patient",
-            "assistant": "Assistant clinique",
-            "nouveau": "Nouveau patient",
-        }
         st.markdown(f"""
-        <div style="padding:12px 0 4px;">
-            <span style="font-family:Poppins,sans-serif;font-size:1.4rem;font-weight:700;color:#181D27;">
-                {page_titles.get(st.session_state.app_page, 'ColoCare MD')}
-            </span>
+        <div style="
+           background:#FFFFFF;
+           border-bottom:1px solid #ECEEF2;
+           min-height:55px;
+           display:flex;
+           align-items:flex-start;
+           justify-content:flex-end;
+           padding-top:8px;
+           padding-right:16px;
+        ">
+
+        <div style="
+            position:relative;
+            padding:6px;
+            cursor:pointer;
+        ">
+            {notif_html}
+            {badge}
+        </div>
+
         </div>
         """, unsafe_allow_html=True)
-    with col_nav2:
-        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-        nav_right_c1, nav_right_c2 = st.columns([1, 2])
-        with nav_right_c1:
-            if urgents_count > 0:
-                st.markdown(f"""
-                <div style="position:relative;display:inline-block;padding:8px 12px;
-                            background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;cursor:pointer;">
-                    🔔
-                    <span style="position:absolute;top:-4px;right:-4px;background:#DC2626;
-                                 color:white;border-radius:50%;width:18px;height:18px;
-                                 font-size:0.6rem;display:flex;align-items:center;
-                                 justify-content:center;font-weight:700;">{urgents_count}</span>
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                st.markdown('<div style="padding:8px 12px;">🔔</div>', unsafe_allow_html=True)
-        with nav_right_c2:
-            if st.button("＋ Ajouter patient", type="primary", key="add_patient_top"):
-                st.session_state.app_page = "nouveau"
-                st.rerun()
 
-    st.divider()
+    with nav_r2:
+
+        st.markdown(
+        '<div style="padding-top:4px;">',
+        unsafe_allow_html=True
+        )
+
+        if st.button(
+            "＋ Ajouter patient",
+            key="add_patient_top"
+        ):
+            st.session_state.app_page="nouveau"
+            st.rerun()
+
+        st.markdown("</div>",unsafe_allow_html=True)
+
+    st.markdown(
+    "<div style='height:10px'></div>",
+    unsafe_allow_html=True
+    )
+
+    st.markdown(
+    '<div style="padding:0 24px;">',
+    unsafe_allow_html=True
+    )
+
+
+    # ════════════════════════════════════════════════════════════
+    # PAGES — wrapper avec padding
+    # ════════════════════════════════════════════════════════════
+    st.markdown('<div class="page-container">', unsafe_allow_html=True)
 
     # ════════════════════════════════
     # DASHBOARD
@@ -1279,141 +1708,114 @@ elif st.session_state.current_page == "app":
     if st.session_state.app_page == "dashboard":
 
         col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            filtre_statut = st.selectbox("Statut", ["actif", "traite", "tous"], key="f_statut")
-        with col2:
-            filtre_urgence = st.selectbox("Urgence", ["tous", "urgent", "semi_urgent", "stable"], key="f_urg")
-        with col3:
-            filtre_stage = st.selectbox("Stage", ["tous", "Stage I", "Stage II", "Stage III", "Stage IV"], key="f_stage")
-        with col4:
-            filtre_orient = st.selectbox("Spécialité", ["tous", "chirurgie", "chirurgie_chimio", "chirurgie_urgente", "oncologie", "incertain"], key="f_orient")
-
-        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+        with col1: filtre_statut  = st.selectbox("Statut",     ["actif","traite","tous"],                                                                    key="f_statut")
+        with col2: filtre_urgence = st.selectbox("Urgence",    ["tous","urgent","semi_urgent","stable"],                                                     key="f_urg")
+        with col3: filtre_stage   = st.selectbox("Stage",      ["tous","Stage I","Stage II","Stage III","Stage IV"],                                         key="f_stage")
+        with col4: filtre_orient  = st.selectbox("Spécialité", ["tous","chirurgie","chirurgie_chimio","chirurgie_urgente","oncologie","incertain"],           key="f_orient")
 
         patients = get_all_patients(filtre_statut if filtre_statut != "tous" else None)
-
         if filtre_urgence != "tous":
-            ranges = {"urgent": (70, 100), "semi_urgent": (40, 69), "stable": (0, 39)}
-            lo, hi = ranges[filtre_urgence]
-            patients = [p for p in patients if lo <= p.get("score", 0) <= hi]
-        if filtre_stage != "tous":
-            patients = [p for p in patients if p.get("stage_group") == filtre_stage]
-        if filtre_orient != "tous":
-            patients = [p for p in patients if p.get("orientation") == filtre_orient]
+            lo, hi = {"urgent":(70,100),"semi_urgent":(40,69),"stable":(0,39)}[filtre_urgence]
+            patients = [p for p in patients if lo <= p.get("score",0) <= hi]
+        if filtre_stage  != "tous": patients = [p for p in patients if p.get("stage_group") == filtre_stage]
+        if filtre_orient != "tous": patients = [p for p in patients if p.get("orientation") == filtre_orient]
+
+        st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
         if not patients:
-            st.markdown("""
-            <div style="text-align:center;padding:80px 40px;color:#94A3B8;">
-                <div style="font-size:3rem;margin-bottom:16px;">📋</div>
-                <div style="font-size:1.1rem;font-weight:500;color:#525252;margin-bottom:8px;">Aucun patient trouvé</div>
-                <div style="font-size:0.875rem;">Cliquez sur "+ Ajouter patient" pour commencer.</div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown('<div style="text-align:center;padding:80px 0;color:#8A8A8A;font-family:Inter,sans-serif;font-size:.9rem;">Aucun patient — cliquez sur Ajouter patient.</div>', unsafe_allow_html=True)
         else:
-            # ── FIX 4e : métriques sans doublons ──
             c1, c2, c3 = st.columns(3)
             with c1: st.metric("Total patients", len(patients))
-            with c2: st.metric("En attente validation", len([p for p in patients if p.get("validation_medecin") == "en_attente"]))
-            with c3: st.metric("Traités", len([p for p in patients if p.get("statut") == "traite"]))
+            with c2: st.metric("En attente", len([p for p in patients if p.get("validation_medecin")=="en_attente"]))
+            with c3: st.metric("Traités",    len([p for p in patients if p.get("statut")=="traite"]))
 
             if len(patients) > 1:
-                scores = [p.get("score", 0) for p in patients]
-                noms = [p.get("nom", "?")[:10] for p in patients]
-                colors = ["#DC2626" if s >= 70 else "#D97706" if s >= 40 else "#059669" for s in scores]
-                fig = go.Figure(go.Bar(
-                    x=noms, y=scores, marker_color=colors,
-                    marker_line_width=0, text=scores, textposition="outside"
-                ))
-                fig.update_layout(
-                    plot_bgcolor="white", paper_bgcolor="white",
-                    font_family="Poppins", yaxis_range=[0, 115], height=200,
-                    margin=dict(t=16, b=8, l=8, r=8), showlegend=False,
-                    xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor="#F1F5F9")
-                )
+                scores = [p.get("score",0) for p in patients]
+                noms   = [p.get("nom","?")[:10] for p in patients]
+                colors = ["#DC2626" if s>=70 else "#D97706" if s>=40 else "#059669" for s in scores]
+                fig = go.Figure(go.Bar(x=noms,y=scores,marker_color=colors,marker_line_width=0,text=scores,textposition="outside"))
+                fig.update_layout(plot_bgcolor="white",paper_bgcolor="white",font_family="Inter",
+                    yaxis_range=[0,115],height=180,margin=dict(t=8,b=8,l=8,r=8),showlegend=False,
+                    xaxis=dict(showgrid=False),yaxis=dict(showgrid=True,gridcolor="#F5F5F5"))
                 st.plotly_chart(fig, use_container_width=True)
 
             st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
             for patient in patients:
-                score = patient.get("score", 0)
-                emoji = get_urgency_emoji(score)
-                urg_class = get_urgency_class(score)
-                val = patient.get("validation_medecin", "en_attente")
-                is_traite = patient.get("statut") == "traite"
-
-                val_badge = '<span class="badge badge-success">✓ Validé</span>' if val == "validé" else \
-                            '<span class="badge badge-urgent">✗ Rejeté</span>' if val == "rejeté" else \
-                            '<span class="badge badge-info">En attente</span>'
-                traite_badge = '<span class="badge badge-success">✓ Traité</span>' if is_traite else ""
+                score  = patient.get("score", 0)
+                uc     = get_urgency_class(score)
+                emoji  = get_urgency_emoji(score)
+                val    = patient.get("validation_medecin","en_attente")
+                is_t   = patient.get("statut") == "traite"
+                vbadge = '<span class="badge badge-success">Validé</span>'  if val=="validé" else \
+                         '<span class="badge badge-urgent">Rejeté</span>'   if val=="rejeté" else \
+                         '<span class="badge badge-info">En attente</span>'
+                tbadge = '<span class="badge badge-success">Traité</span>'  if is_t else ""
 
                 st.markdown(f"""
-                <div class="patient-card {urg_class}">
-                    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-                        <div>
-                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-                                <span>{emoji}</span>
-                                <span style="font-weight:600;color:#181D27;font-size:0.95rem;">{patient.get('nom','?')}</span>
-                                <code style="background:#F1F5F9;padding:2px 8px;border-radius:4px;font-size:0.78rem;color:#2F80ED;">{patient.get('stade','?')}</code>
-                                <span style="font-size:0.8rem;color:#94A3B8;">{patient.get('stage_group','?')}</span>
-                            </div>
-                            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-                                {val_badge} {traite_badge}
-                                <span style="font-size:0.8rem;color:#525252;">Score <strong>{score}/100</strong></span>
-                                <span style="font-size:0.8rem;color:#525252;">•</span>
-                                <span style="font-size:0.8rem;color:#525252;">{patient.get('delai','?')}</span>
-                                <span style="font-size:0.8rem;color:#94A3B8;">•</span>
-                                <span style="font-size:0.8rem;color:#94A3B8;">{patient.get('date_analyse','?')}</span>
-                            </div>
-                        </div>
-                        <div style="font-size:0.8rem;color:#94A3B8;">{patient.get('orientation','?')}</div>
+                <div class="patient-card {uc}">
+                  <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <div>
+                      <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
+                        <span style="font-size:.82rem;">{emoji}</span>
+                        <span style="font-weight:500;font-size:.88rem;color:#1A1A2E;">{patient.get('nom','?')}</span>
+                        <code style="background:#F5F5F5;padding:1px 7px;border-radius:4px;font-size:.72rem;color:#2F80ED;">{patient.get('stade','?')}</code>
+                        <span style="font-size:.75rem;color:#8A8A8A;">{patient.get('stage_group','?')}</span>
+                      </div>
+                      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                        {vbadge} {tbadge}
+                        <span style="font-size:.75rem;color:#525252;">Score <strong>{score}/100</strong> • {patient.get('delai','?')}</span>
+                        <span style="font-size:.72rem;color:#8A8A8A;">{patient.get('date_analyse','?')}</span>
+                      </div>
                     </div>
+                    <span style="font-size:.72rem;color:#8A8A8A;">{patient.get('orientation','?')}</span>
+                  </div>
                 </div>
                 """, unsafe_allow_html=True)
 
-                col1, col2, col3, col4, col5 = st.columns([3, 1, 1, 1, 1])
-                with col2:
-                    if st.button("Ouvrir →", key=f"open_{patient['id']}"):
+                ca, cb, cc, cd = st.columns([4, 1, 1, 1])
+                with cb:
+                    if st.button("Ouvrir", key=f"open_{patient['id']}"):
                         st.session_state.current_patient_id = patient["id"]
                         st.session_state.app_page = "dossier"
                         st.rerun()
-                with col3:
-                    if not is_traite:
-                        if st.button("✓ Traité", key=f"traite_{patient['id']}"):
+                with cc:
+                    if not is_t:
+                        if st.button("Traité", key=f"t_{patient['id']}"):
                             update_patient_status(patient["id"], "traite")
                             add_log(patient["id"], "marque_traite")
                             st.rerun()
-                with col4:
-                    if st.button("🗑", key=f"del_btn_{patient['id']}"):
+                with cd:
+                    if st.button("Suppr.", key=f"d_{patient['id']}"):
                         st.session_state[f"confirm_{patient['id']}"] = True
                         st.rerun()
-                with col5:
-                    if st.session_state.get(f"confirm_{patient['id']}", False):
-                        c1, c2 = st.columns(2)
-                        with c1:
-                            if st.button("Oui", key=f"yes_{patient['id']}"):
-                                delete_patient_db(patient["id"])
-                                st.session_state.pop(f"confirm_{patient['id']}", None)
-                                st.rerun()
-                        with c2:
-                            if st.button("Non", key=f"no_{patient['id']}"):
-                                st.session_state.pop(f"confirm_{patient['id']}", None)
-                                st.rerun()
+                if st.session_state.get(f"confirm_{patient['id']}", False):
+                    x1, x2 = st.columns(2)
+                    with x1:
+                        if st.button("Confirmer", key=f"y_{patient['id']}"):
+                            delete_patient_db(patient["id"])
+                            st.session_state.pop(f"confirm_{patient['id']}", None)
+                            st.rerun()
+                    with x2:
+                        if st.button("Annuler", key=f"n_{patient['id']}"):
+                            st.session_state.pop(f"confirm_{patient['id']}", None)
+                            st.rerun()
 
     # ════════════════════════════════
-    # NOUVEAU PATIENT — FIX 4c
+    # NOUVEAU PATIENT
     # ════════════════════════════════
     elif st.session_state.app_page == "nouveau":
 
         from datetime import datetime
         import re
 
-        # ── Si résultats en attente de validation médecin ──
+        # ── RÉSULTATS EN ATTENTE ─────────────────────────────────
         if st.session_state.get("pending_patient_id"):
             pid = st.session_state.pending_patient_id
             from modules.database import load_pending_analysis, delete_pending_analysis
 
             pa = load_pending_analysis(pid)
-
             if not pa:
                 st.error("Analyse temporaire introuvable.")
                 st.session_state.pending_patient_id = None
@@ -1430,24 +1832,125 @@ elif st.session_state.current_page == "app":
             elapsed       = pa.get("elapsed", 0)
             patient_nom   = pa.get("patient_nom", "?")
             patient_type  = pa.get("patient_type", "?")
+            scenario      = pa.get("scenario", "text")
 
-            st.markdown(f'<div style="font-size:.8rem;color:#94A3B8;margin:8px 0;">Analyse terminée ({elapsed}s)</div>', unsafe_allow_html=True)
-            st.info("**Les résultats ci-dessous ne sont pas encore enregistrés.** Validez pour sauvegarder.")
+            is_image_only = (scenario == "image_only")
 
-            vs = validation.get("status", "")
-            if vs == "non_confirme": st.error(f"❌ {validation.get('message','')}")
-            elif vs == "suspect": st.warning(f"⚠️ {validation.get('message','')}")
-            else: st.success(f"✅ {validation.get('message','')}")
+            st.markdown(f'<div style="font-size:.75rem;color:#8A8A8A;margin-bottom:10px;">Patient : {patient_nom} • Analyse terminée ({elapsed}s)</div>', unsafe_allow_html=True)
 
-            ct = completude.get("taux_completude", 0)
-            if completude.get("fiabilite") == "faible":
-                st.error(f"⚠️ Complétude : {ct}% — Manquants : {', '.join(completude.get('champs_manquants',[]))}")
-            elif completude.get("fiabilite") == "modérée":
-                st.warning(f"⚠️ Complétude : {ct}%")
-            else:
-                st.success(f"✅ Complétude : {ct}%")
+            # ════════════════════════════════════════════════════
+            # SCÉNARIO IMAGE UNIQUEMENT
+            # ════════════════════════════════════════════════════
+            if is_image_only:
+                st.info("Analyse basée sur imagerie uniquement. Aucun document clinique fourni.")
 
-            st.divider()
+                if image_results:
+                    for ir in image_results:
+                        yolo_r    = ir.get("yolo", ir)
+                        rapport_r = ir.get("rapport", {})
+                        polype    = yolo_r.get("polype_detecte", False)
+                        conf      = yolo_r.get("confidence_max", 0)
+                        risque    = yolo_r.get("risque", "inconnu")
+                        fname     = ir.get("filename", "image")
+                        detections = yolo_r.get("detections", [])
+
+                        st.markdown(f'<div style="font-size:.82rem;font-weight:500;color:#525252;margin-bottom:8px;">{fname}</div>', unsafe_allow_html=True)
+
+                        # ── Image annotée YOLO ──────────────────
+                        annotated_path = ir.get("annotated_path", "")
+                        original_path  = ir.get("original_path", "")
+
+                        if annotated_path and os.path.exists(annotated_path):
+                            st.markdown('<div class="section-label">Détection YOLO — Image annotée</div>', unsafe_allow_html=True)
+                            col_img1, col_img2 = st.columns(2)
+                            with col_img1:
+                                st.markdown('<div style="font-size:.72rem;color:#8A8A8A;margin-bottom:4px;">Image originale</div>', unsafe_allow_html=True)
+                                if original_path and os.path.exists(original_path):
+                                    st.image(original_path, use_container_width=True)
+                            with col_img2:
+                                st.markdown('<div style="font-size:.72rem;color:#8A8A8A;margin-bottom:4px;">Détections YOLO</div>', unsafe_allow_html=True)
+                                st.image(annotated_path, use_container_width=True)
+                        elif original_path and os.path.exists(original_path):
+                            st.markdown('<div class="section-label">Image analysée</div>', unsafe_allow_html=True)
+                            st.image(original_path, use_container_width=True)
+
+                        # Bounding boxes info
+                        if detections:
+                            st.markdown('<div class="section-label">Détections</div>', unsafe_allow_html=True)
+                            for det in detections:
+                                det_conf  = det.get("confidence", 0)
+                                det_class = det.get("class_name", "lésion")
+                                st.markdown(f'<div style="font-size:.82rem;color:#525252;padding:3px 0;">· {det_class} — Confiance : <strong>{det_conf:.0%}</strong></div>', unsafe_allow_html=True)
+
+                        c1, c2, c3 = st.columns(3)
+                        with c1: st.metric("Lésion détectée", "OUI" if polype else "NON")
+                        with c2: st.metric("Confiance max", f"{conf:.0%}" if conf > 0 else "—")
+                        with c3: st.metric("Niveau de risque", risque.upper() if risque != "inconnu" else "—")
+
+                        # Rapport Gemma
+                        if rapport_r.get("resume_clinique"):
+                            st.markdown('<div class="report-section"><div class="report-label">Analyse Gemma 4</div>', unsafe_allow_html=True)
+                            st.markdown(f'<div class="report-value">{rapport_r.get("resume_clinique","")}</div>', unsafe_allow_html=True)
+                            if rapport_r.get("recommandations_specialiste"):
+                                st.markdown('<div style="margin-top:10px;"><div class="report-label">Orientation suggérée</div>', unsafe_allow_html=True)
+                                for reco in rapport_r.get("recommandations_specialiste", []):
+                                    st.markdown(f'<div style="font-size:.82rem;color:#525252;">→ {reco}</div>', unsafe_allow_html=True)
+                                st.markdown('</div>', unsafe_allow_html=True)
+                            examen = rapport_r.get("examen_complementaire","")
+                            if examen:
+                                st.markdown(f'<div style="margin-top:6px;font-size:.82rem;color:#525252;"><strong>Examen complémentaire :</strong> {examen}</div>', unsafe_allow_html=True)
+                            st.markdown('</div>', unsafe_allow_html=True)
+
+                        st.markdown('<div style="font-size:.72rem;color:#8A8A8A;font-style:italic;margin-top:8px;padding:10px 14px;background:#F8F8F8;border-radius:6px;">Ce système fournit une aide à la décision basée sur l\'imagerie. Un bilan clinique complet est requis pour tout diagnostic.</div>', unsafe_allow_html=True)
+                else:
+                    st.warning("Aucun résultat d'imagerie disponible.")
+
+                st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
+                st.markdown('<div class="section-label">Notes du médecin</div>', unsafe_allow_html=True)
+                notes_medecin = st.text_area("", value=st.session_state.get("pending_notes",""),
+                    height=70, placeholder="Observations avant validation...", label_visibility="collapsed")
+                st.session_state.pending_notes = notes_medecin
+
+                st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+                st.markdown('<div class="section-label">Validation</div>', unsafe_allow_html=True)
+
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    if st.button("Valider et enregistrer", type="primary", use_container_width=True, key="val_img"):
+                        _do_save(pid, pa, patient_nom, patient_type, medical_data, score_data,
+                                 orientation, explanation, recurrence, validation, completude,
+                                 notes_medecin, "validé", "dossier")
+                with c2:
+                    if st.button("Rejeter", use_container_width=True, key="rej_img"):
+                        _do_save(pid, pa, patient_nom, patient_type, medical_data, score_data,
+                                 orientation, explanation, recurrence, validation, completude,
+                                 notes_medecin, "rejeté", "dashboard")
+                with c3:
+                    if st.button("Annuler", use_container_width=True, key="ann_img"):
+                        from modules.database import delete_pending_analysis
+                        delete_pending_analysis(pid)
+                        st.session_state.pending_patient_id = None
+                        st.session_state.pending_notes = ""
+                        st.rerun()
+                st.stop()
+
+            # ════════════════════════════════════════════════════
+            # SCÉNARIO TEXTE (± images)
+            # ════════════════════════════════════════════════════
+            st.info("Résultats en attente de validation. Aucune donnée n'est enregistrée avant votre confirmation.")
+
+            vs = validation.get("status","")
+            if vs == "non_confirme": st.error(validation.get('message',''))
+            elif vs == "suspect":    st.warning(validation.get('message',''))
+            else:                    st.success(validation.get('message',''))
+
+            ct  = completude.get("taux_completude", 0)
+            fib = completude.get("fiabilite","")
+            if fib == "faible":   st.error(f"Complétude : {ct}% — Manquants : {', '.join(completude.get('champs_manquants',[]))}")
+            elif fib == "modérée": st.warning(f"Complétude : {ct}%")
+            else:                  st.success(f"Complétude : {ct}%")
+
+            st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
             c1, c2, c3, c4 = st.columns(4)
             with c1: st.metric("Score priorité", f"{score_data.get('score',0)}/100")
@@ -1456,158 +1959,120 @@ elif st.session_state.current_page == "app":
             with c4: st.metric("Confiance IA", f"{orientation.get('confidence',0)}%")
 
             st.divider()
-            st.markdown("## Rapport clinique")
 
-            st.markdown("### Résumé clinique")
-            st.markdown(f'<div style="background:#F8FAFC;border-left:4px solid #2F80ED;border-radius:0 8px 8px 0;padding:16px 20px;font-size:.95rem;color:#181D27;line-height:1.7;">{explanation.get("resume_clinique","Non disponible")}</div>', unsafe_allow_html=True)
+            # ── RAPPORT MÉDICAL ──────────────────────────────────
+            st.markdown('<div class="section-label">Rapport clinique</div>', unsafe_allow_html=True)
 
+            # Section A
+            st.markdown('<div class="report-section"><div class="report-label">Section A — Données cliniques du patient</div>', unsafe_allow_html=True)
+            resume = explanation.get("resume_clinique","Non disponible")
+            st.markdown(f'<div class="report-value" style="margin-bottom:10px;">{resume}</div>', unsafe_allow_html=True)
+            preuves = explanation.get("preuves_dossier",[])
+            if preuves:
+                st.markdown('<div style="font-size:.72rem;font-weight:600;color:#8A8A8A;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Éléments identifiés</div>', unsafe_allow_html=True)
+                for p in preuves:
+                    st.markdown(f'<div style="font-size:.82rem;color:#525252;padding:2px 0;">· {p}</div>', unsafe_allow_html=True)
             if medical_data.get("traitement_anterieur") not in ["aucun","inconnu",None,""]:
-                st.markdown(f'<div style="background:#FEF3C7;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:.875rem;color:#92400E;">Traitements antérieurs : {medical_data.get("traitement_anterieur")}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div style="margin-top:6px;font-size:.82rem;color:#D97706;"><strong>Traitements antérieurs :</strong> {medical_data.get("traitement_anterieur")}</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
 
-            st.markdown("### Données cliniques")
-            c1, c2 = st.columns(2)
-            with c1:
-                niv = score_data.get("niveau","stable")
-                if niv == "urgent": st.error(f"URGENT — {score_data.get('delai','')}")
-                elif niv == "semi_urgent": st.warning(f"SEMI-URGENT — {score_data.get('delai','')}")
-                else: st.success(f"STABLE — {score_data.get('delai','')}")
-                st.markdown("**Facteurs de priorité**")
-                for f in score_data.get("facteurs",[]): st.markdown(f"- {f}")
-            with c2:
-                dec = orientation.get("decision","")
-                box = f"**{orientation.get('specialite','')}**\n\nProtocole : {orientation.get('protocole','')}\n\nDélai : {orientation.get('delai','')}"
-                if "chirurgie" in dec: st.error(box)
-                elif dec == "oncologie": st.warning(box)
-                else: st.info(box)
-                if orientation.get("rcp_requis"): st.warning("RCP multidisciplinaire requise")
+            # Section B
+            stage_g  = orientation.get("stage_group","Stage inconnu")
+            decision = orientation.get("decision","incertain")
+            rcp_pts  = []
+            if medical_data.get("metastases"): rcp_pts.append("Évaluation de la résécabilité des métastases")
+            if stage_g in ["Stage III","Stage IV"]: rcp_pts.append("Indication et protocole de chimiothérapie adjuvante")
+            if decision == "chirurgie_urgente": rcp_pts.append("Urgence chirurgicale — décision opératoire immédiate")
+            if orientation.get("rcp_requis"): rcp_pts.append("Validation multidisciplinaire de la stratégie thérapeutique")
+            if not rcp_pts: rcp_pts.append("Discussion de la stratégie de surveillance post-thérapeutique")
 
-            st.markdown("### Guidelines ESMO 2023")
-            esmo = get_esmo_guideline(orientation.get("stage_group","Stage inconnu"))
-            st.markdown(f"""<div style="background:#EFF6FF;border-left:4px solid #2F80ED;border-radius:0 8px 8px 0;padding:16px 20px;font-size:.875rem;color:#525252;line-height:1.8;">
-<strong>Référence :</strong> {esmo['reference']}<br>
-<strong>Chimio :</strong> {esmo['recommandation_chimio']}<br>
-<strong>Survie 5 ans :</strong> {esmo['survie_5ans']}<br>
-<strong>Surveillance :</strong> {esmo['surveillance']}</div>""", unsafe_allow_html=True)
+            st.markdown('<div class="report-section"><div class="report-label">Section B — Points de discussion RCP</div>', unsafe_allow_html=True)
+            for pt in rcp_pts:
+                st.markdown(f'<div style="font-size:.82rem;color:#525252;padding:2px 0;">· {pt}</div>', unsafe_allow_html=True)
+            spec = orientation.get("specialite","")
+            if spec: st.markdown(f'<div style="margin-top:6px;font-size:.82rem;color:#2F80ED;font-weight:500;">Spécialité recommandée : {spec}</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
 
-            st.markdown("### Explainability")
-            c1, c2 = st.columns(2)
-            with c1:
-                st.markdown("**Preuves dans le dossier**")
-                for p in explanation.get("preuves_dossier",[]): st.markdown(f"- {p}")
-            with c2:
-                st.markdown("**Règles cliniques activées**")
-                for r in explanation.get("regles_activees",[]): st.markdown(f"- {r}")
-            st.markdown(f"**Confiance IA :** {explanation.get('confiance_label','')} — {explanation.get('confiance_explication','')}")
-            st.markdown(f"**Raison :** {explanation.get('raison_principale','')}")
+            # Section C
+            protocole = orientation.get("protocole","")
+            delai     = orientation.get("delai","")
+            regles    = explanation.get("regles_activees",[])
 
+            st.markdown('<div class="report-section"><div class="report-label">Section C — Recommandations thérapeutiques</div>', unsafe_allow_html=True)
+            if protocole:
+                st.markdown(f"""
+                <div style="background:#F8FBFF;border-radius:8px;padding:12px 14px;margin-bottom:8px;">
+                    <div style="font-size:.72rem;font-weight:600;color:#2F80ED;margin-bottom:3px;">Recommandation :</div>
+                    <div style="font-size:.85rem;color:#1A1A2E;font-weight:500;">{protocole}</div>
+                    <div style="font-size:.72rem;color:#8A8A8A;margin-top:6px;">Preuves : {", ".join(regles[:3]) if regles else "Voir section A"}</div>
+                    <div style="font-size:.75rem;color:#8A8A8A;margin-top:4px;">Délai : {delai}</div>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown('<div style="font-size:.82rem;color:#8A8A8A;font-style:italic;">Informations insuffisantes. Consultation RCP requise.</div>', unsafe_allow_html=True)
+            rr = recurrence.get("risk_score",0)
+            nr = recurrence.get("niveau_risque","Non calculé")
+            st.markdown(f'<div style="margin-top:8px;font-size:.82rem;color:#525252;"><strong>Risque de récidive estimé :</strong> {nr} ({rr}/100)</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+
+            # Section D — ESMO
+            from modules.rules_engine import get_esmo_guideline
+            esmo = get_esmo_guideline(stage_g)
+            st.markdown(f"""
+            <div class="report-section">
+                <div class="report-label">Section D — Recommandations ESMO 2023 (information générale)</div>
+                <div style="font-size:.72rem;color:#8A8A8A;font-style:italic;margin-bottom:8px;">Ces recommandations sont génériques et ne se substituent pas à l'évaluation clinique personnalisée.</div>
+                <div class="esmo-block">
+                    <strong>Référence :</strong> {esmo['reference']}<br>
+                    <strong>Chimio :</strong> {esmo['recommandation_chimio']}<br>
+                    <strong>Survie 5 ans :</strong> {esmo['survie_5ans']}<br>
+                    <strong>Surveillance :</strong> {esmo['surveillance']}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # Images si présentes
             if image_results:
-                st.markdown("### Résultats imagerie")
+                st.markdown('<div class="report-section"><div class="report-label">Résultats imagerie</div>', unsafe_allow_html=True)
                 for ir in image_results:
-                    if ir.get("type") == "yolo":
-                        yr = ir.get("yolo", {})
-                        rr = ir.get("rapport", {})
-                        polype = yr.get("polype_detecte", False)
-                        conf   = yr.get("confidence_max", 0)
-                        risque = yr.get("risque","inconnu").upper()
-                        if polype:
-                            st.error(f"Lésion détectée — {yr.get('nombre_polypes',0)} polype(s) — Confiance : {conf:.0%} — Risque : {risque}")
-                        else:
-                            st.success(f"Aucune lésion détectée — Confiance : {conf:.0%}")
-                        if rr.get("resume_clinique"):
-                            st.markdown(f'<div style="background:#F8FAFC;border-radius:8px;padding:12px 16px;font-size:.875rem;color:#181D27;">{rr.get("resume_clinique","")}</div>', unsafe_allow_html=True)
+                    yr   = ir.get("yolo", ir)
+                    rr2  = ir.get("rapport", {})
+                    pol  = yr.get("polype_detecte", False)
+                    conf = yr.get("confidence_max", 0)
+                    if pol:
+                        st.markdown(f'<div style="font-size:.82rem;color:#DC2626;">Lésion détectée — {yr.get("nombre_polypes",0)} polype(s) — Confiance {conf:.0%}</div>', unsafe_allow_html=True)
                     else:
-                        reco = get_image_recommendation(ir)
-                        st.markdown(f"**{ir.get('filename','')}** — {reco}")
+                        st.markdown(f'<div style="font-size:.82rem;color:#059669;">Aucune lésion détectée — Confiance {conf:.0%}</div>', unsafe_allow_html=True)
+                    if rr2.get("resume_clinique"):
+                        st.markdown(f'<div style="font-size:.82rem;color:#525252;margin-top:4px;">{rr2.get("resume_clinique","")}</div>', unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True)
+
+            st.markdown('<div style="font-size:.72rem;color:#8A8A8A;font-style:italic;padding:10px 14px;background:#F8F8F8;border-radius:8px;margin-top:4px;line-height:1.6;">Ce système fournit une aide à la décision clinique assistée par IA et ne remplace pas le jugement médical.</div>', unsafe_allow_html=True)
 
             st.divider()
-            st.markdown("### Notes du médecin (optionnel)")
-            notes_medecin = st.text_area(
-                "Annotations ou corrections",
-                value=st.session_state.get("pending_notes",""),
-                height=80,
-                placeholder="Ajoutez vos observations avant de valider..."
-            )
+
+            # Notes médecin
+            st.markdown('<div class="section-label">Notes du médecin</div>', unsafe_allow_html=True)
+            notes_medecin = st.text_area("", value=st.session_state.get("pending_notes",""),
+                height=70, placeholder="Annotations ou corrections avant validation...", label_visibility="collapsed")
             st.session_state.pending_notes = notes_medecin
 
-            st.divider()
-            st.markdown("### Validation médecin")
-            st.warning("**Aucune donnée n'est enregistrée avant votre validation.**")
+            st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+            st.markdown('<div class="section-label">Validation</div>', unsafe_allow_html=True)
 
             c1, c2, c3 = st.columns(3)
             with c1:
-                if st.button("Valider et enregistrer", type="primary", use_container_width=True):
-                    from modules.database import delete_pending_analysis
-                    patient_record = {
-                        "id": pid,
-                        "nom": patient_nom,
-                        "type": patient_type,
-                        "date_analyse": datetime.now().strftime("%d/%m/%Y %H:%M"),
-                        "statut": "actif",
-                        "score": score_data.get("score",0),
-                        "stade": f"{medical_data.get('stade_T','?')}{medical_data.get('stade_N','?')}{medical_data.get('stade_M','?')}",
-                        "stage_group": orientation.get("stage_group","Inconnu"),
-                        "orientation": orientation.get("decision","incertain"),
-                        "delai": orientation.get("delai","À définir"),
-                        "urgence": score_data.get("label",""),
-                        "docs_count": pa.get("docs_count",0),
-                        "images_count": pa.get("images_count",0),
-                        "validation_medecin": "validé",
-                        "validation_date": datetime.now().strftime("%d/%m/%Y %H:%M"),
-                        "medical_data": {**medical_data, "notes_medecin": notes_medecin},
-                        "score_data": score_data,
-                        "orientation_data": orientation,
-                        "explanation": explanation,
-                        "recurrence": recurrence,
-                        "validation": validation,
-                        "completude": completude,
-                        "image_results": [],
-                        "fusion": pa.get("fusion",{})
-                    }
-                    save_patient(patient_record)
-                    add_log(pid, "valide_enregistre", f"Score:{score_data.get('score',0)}")
-                    delete_pending_analysis(pid)
-                    st.session_state.pending_patient_id = None
-                    st.session_state.pending_notes = ""
-                    st.session_state.current_patient_id = pid
-                    st.session_state.app_page = "dossier"
-                    st.rerun()
+                if st.button("Valider et enregistrer", type="primary", use_container_width=True, key="val_txt"):
+                    _do_save(pid, pa, patient_nom, patient_type, medical_data, score_data,
+                             orientation, explanation, recurrence, validation, completude,
+                             notes_medecin, "validé", "dossier")
             with c2:
-                if st.button("Rejeter et enregistrer", use_container_width=True):
-                    from modules.database import delete_pending_analysis
-                    patient_record = {
-                        "id": pid,
-                        "nom": patient_nom,
-                        "type": patient_type,
-                        "date_analyse": datetime.now().strftime("%d/%m/%Y %H:%M"),
-                        "statut": "actif",
-                        "score": score_data.get("score",0),
-                        "stade": f"{medical_data.get('stade_T','?')}{medical_data.get('stade_N','?')}{medical_data.get('stade_M','?')}",
-                        "stage_group": orientation.get("stage_group","Inconnu"),
-                        "orientation": orientation.get("decision","incertain"),
-                        "delai": orientation.get("delai","À définir"),
-                        "urgence": score_data.get("label",""),
-                        "docs_count": pa.get("docs_count",0),
-                        "images_count": pa.get("images_count",0),
-                        "validation_medecin": "rejeté",
-                        "medical_data": {**medical_data, "notes_medecin": notes_medecin},
-                        "score_data": score_data,
-                        "orientation_data": orientation,
-                        "explanation": explanation,
-                        "recurrence": recurrence,
-                        "validation": validation,
-                        "completude": completude,
-                        "image_results": [],
-                        "fusion": pa.get("fusion",{})
-                    }
-                    save_patient(patient_record)
-                    add_log(pid, "rejete_enregistre")
-                    delete_pending_analysis(pid)
-                    st.session_state.pending_patient_id = None
-                    st.session_state.pending_notes = ""
-                    st.session_state.app_page = "dashboard"
-                    st.rerun()
+                if st.button("Rejeter et enregistrer", use_container_width=True, key="rej_txt"):
+                    _do_save(pid, pa, patient_nom, patient_type, medical_data, score_data,
+                             orientation, explanation, recurrence, validation, completude,
+                             notes_medecin, "rejeté", "dashboard")
             with c3:
-                if st.button("Annuler sans enregistrer", use_container_width=True):
+                if st.button("Annuler sans enregistrer", use_container_width=True, key="ann_txt"):
                     from modules.database import delete_pending_analysis
                     delete_pending_analysis(pid)
                     st.session_state.pending_patient_id = None
@@ -1616,36 +2081,32 @@ elif st.session_state.current_page == "app":
 
             st.stop()
 
-        # ── FORMULAIRE UPLOAD ──────────────────────────────────────
+        # ── FORMULAIRE UPLOAD ────────────────────────────────────
         c1, c2 = st.columns(2)
-        with c1:
-            patient_nom = st.text_input("Identifiant patient (anonymisé)", placeholder="Ex: Dossier_2024_001")
-        with c2:
-            patient_type = st.selectbox("Type de dossier", ["Bilan initial","Post-opératoire","Suivi chimio","Récidive"])
+        with c1: patient_nom  = st.text_input("Identifiant patient (anonymisé)", placeholder="Ex: Dossier_2024_001")
+        with c2: patient_type = st.selectbox("Type de dossier", ["Bilan initial","Post-opératoire","Suivi chimio","Récidive"])
 
         if not patient_nom:
-            st.markdown('<div style="color:#D97706;font-size:.8rem;">Renseignez un identifiant patient pour continuer.</div>', unsafe_allow_html=True)
+            st.markdown('<div style="font-size:.78rem;color:#D97706;margin-top:-6px;">Identifiant requis.</div>', unsafe_allow_html=True)
 
         st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
 
         c1, c2 = st.columns(2)
         with c1:
-            st.markdown("**Documents médicaux** (PDF ou TXT)")
+            st.markdown('<div class="section-label">Documents médicaux (PDF ou TXT)</div>', unsafe_allow_html=True)
             uploaded_docs = st.file_uploader("docs", type=["pdf","txt"], accept_multiple_files=True, key="docs_new", label_visibility="collapsed")
-            if uploaded_docs: st.markdown(f'<div style="font-size:.8rem;color:#059669;">✓ {len(uploaded_docs)} fichier(s)</div>', unsafe_allow_html=True)
+            if uploaded_docs: st.markdown(f'<div style="font-size:.78rem;color:#059669;">✓ {len(uploaded_docs)} fichier(s)</div>', unsafe_allow_html=True)
         with c2:
-            st.markdown("**Images médicales** (JPG/PNG — coloscopie)")
+            st.markdown('<div class="section-label">Images médicales (JPG/PNG)</div>', unsafe_allow_html=True)
             uploaded_images = st.file_uploader("imgs", type=["jpg","jpeg","png"], accept_multiple_files=True, key="imgs_new", label_visibility="collapsed")
-            if uploaded_images: st.markdown(f'<div style="font-size:.8rem;color:#059669;">✓ {len(uploaded_images)} image(s)</div>', unsafe_allow_html=True)
+            if uploaded_images: st.markdown(f'<div style="font-size:.78rem;color:#059669;">✓ {len(uploaded_images)} image(s)</div>', unsafe_allow_html=True)
 
         has_docs = bool(uploaded_docs)
         has_imgs = bool(uploaded_images)
 
         if patient_nom and (has_docs or has_imgs):
-            if has_docs and has_imgs:   scn_label = "Texte + Images (fusion multimodale)"
-            elif has_docs:               scn_label = "Texte uniquement"
-            else:                        scn_label = "Image uniquement (YOLO)"
-            st.markdown(f'<div style="font-size:.85rem;color:#2F80ED;font-weight:500;margin-bottom:8px;">Scénario : {scn_label}</div>', unsafe_allow_html=True)
+            scn = "Texte + Images" if (has_docs and has_imgs) else ("Texte uniquement" if has_docs else "Image uniquement (YOLO)")
+            st.markdown(f'<div style="font-size:.78rem;color:#2F80ED;font-weight:500;margin-bottom:8px;">Scénario : {scn}</div>', unsafe_allow_html=True)
 
             if st.button("Lancer l'analyse complète", type="primary", use_container_width=True):
                 progress = st.progress(0, "Initialisation...")
@@ -1653,29 +2114,25 @@ elif st.session_state.current_page == "app":
                 try:
                     progress.progress(20, "Analyse en cours...")
                     result = run_pipeline(
-                        text_files=uploaded_docs if has_docs else None,
+                        text_files=uploaded_docs  if has_docs else None,
                         image_files=uploaded_images if has_imgs else None
                     )
                     progress.progress(100, "Terminé")
                     elapsed = round(time.time() - t0, 2)
-
                     safe_nom = re.sub(r'[^a-zA-Z0-9_]', '_', patient_nom)
                     pid = f"{safe_nom}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-
                     result["patient_nom"]  = patient_nom
                     result["patient_type"] = patient_type
                     result["elapsed"]      = elapsed
-                    result["docs_count"]   = len(uploaded_docs) if has_docs else 0
+                    result["docs_count"]   = len(uploaded_docs)  if has_docs else 0
                     result["images_count"] = len(uploaded_images) if has_imgs else 0
-
                     from modules.database import save_pending_analysis
                     save_pending_analysis(pid, result)
                     st.session_state.pending_patient_id = pid
                     st.session_state.pending_notes = ""
                     st.rerun()
-
                 except Exception as e:
-                    st.error(f"Erreur pipeline : {str(e)}")
+                    st.error(f"Erreur : {str(e)}")
                     st.info("Vérifiez qu'Ollama est démarré : `ollama serve`")
 
     # ════════════════════════════════
@@ -1685,7 +2142,7 @@ elif st.session_state.current_page == "app":
 
         all_p = get_all_patients()
         if not all_p:
-            st.info("Aucun patient. Cliquez sur '+ Ajouter patient'.")
+            st.markdown('<div style="text-align:center;padding:60px;color:#8A8A8A;font-size:.9rem;">Aucun patient. Cliquez sur Ajouter patient.</div>', unsafe_allow_html=True)
             st.stop()
 
         options = {
@@ -1698,213 +2155,211 @@ elif st.session_state.current_page == "app":
             if st.session_state.current_patient_id in vals:
                 default_idx = vals.index(st.session_state.current_patient_id)
 
-        selected_label = st.selectbox("Sélectionner un patient", list(options.keys()), index=default_idx)
-        selected_id = options[selected_label]
-        patient = get_patient_by_id(selected_id)
-
+        selected_label = st.selectbox("", list(options.keys()), index=default_idx, label_visibility="collapsed")
+        selected_id    = options[selected_label]
+        patient        = get_patient_by_id(selected_id)
         if not patient:
             st.error("Dossier introuvable.")
             st.stop()
 
         st.session_state.current_patient_id = selected_id
 
-        med = patient.get("medical_data", {})
-        score_data = patient.get("score_data", {})
+        med         = patient.get("medical_data", {})
+        score_data  = patient.get("score_data", {})
         orientation = patient.get("orientation_data", {})
         explanation = patient.get("explanation", {})
-        recurrence = patient.get("recurrence", {})
-        val_med = patient.get("validation_medecin", "en_attente")
+        recurrence  = patient.get("recurrence", {})
+        val_med     = patient.get("validation_medecin", "en_attente")
 
-        col1, col2, col3, col4, col5 = st.columns([4, 1, 1, 1, 1])
-        with col1:
-            st.markdown(f"""
-            <div style="padding:8px 0;">
-                <div style="font-size:1.1rem;font-weight:600;color:#181D27;">{patient['nom']}</div>
-                <div style="font-size:0.8rem;color:#94A3B8;">{patient.get('type_dossier','?')} • Analysé le {patient.get('date_analyse','?')} • {patient.get('docs_count',0)} doc(s)</div>
-            </div>
-            """, unsafe_allow_html=True)
-        with col2:
-            btn_label = "↺ Actif" if patient.get("statut") == "traite" else "✓ Traité"
-            if st.button(btn_label, key="toggle_statut"):
-                new_s = "actif" if patient.get("statut") == "traite" else "traite"
-                update_patient_status(selected_id, new_s)
+        # En-tête
+        c1, c2, c3, c4, c5 = st.columns([4, 1, 1, 1, 1])
+        with c1:
+            st.markdown(f'<div style="padding:6px 0;"><div style="font-size:.92rem;font-weight:600;color:#1A1A2E;">{patient["nom"]}</div><div style="font-size:.72rem;color:#8A8A8A;">{patient.get("type_dossier","?")} • {patient.get("date_analyse","?")} • {patient.get("docs_count",0)} doc(s)</div></div>', unsafe_allow_html=True)
+        with c2:
+            lbl = "Actif" if patient.get("statut") == "traite" else "Traité"
+            if st.button(lbl, key="tog_s"):
+                update_patient_status(selected_id, "actif" if patient.get("statut") == "traite" else "traite")
                 st.rerun()
-        with col3:
-            if st.button("✏️ Modifier"):
+        with c3:
+            if st.button("Modifier", key="edit_btn"):
                 st.session_state.edit_mode = True
                 st.rerun()
-        with col4:
-            if st.button("🗑 Suppr."):
-                st.session_state["confirm_del_dossier"] = True
+        with c4:
+            if st.button("Supprimer", key="del_dos"):
+                st.session_state["cdel"] = True
                 st.rerun()
-        with col5:
+        with c5:
             if val_med == "en_attente":
-                if st.button("✅ Valider"):
+                if st.button("Valider", key="val_dos_header", type="primary"):
                     update_validation_medecin(selected_id, "validé")
                     add_log(selected_id, "validation", "validé")
                     st.rerun()
 
-        if st.session_state.get("confirm_del_dossier", False):
-            st.warning("⚠️ Supprimer définitivement ?")
-            c1, c2 = st.columns(2)
-            with c1:
-                if st.button("✅ Confirmer"):
+        if st.session_state.get("cdel", False):
+            st.warning("Supprimer définitivement ?")
+            x1, x2 = st.columns(2)
+            with x1:
+                if st.button("Confirmer", key="cdel_yes"):
                     delete_patient_db(selected_id)
-                    st.session_state.pop("confirm_del_dossier", None)
+                    st.session_state.pop("cdel", None)
                     st.session_state.current_patient_id = None
                     st.session_state.app_page = "dashboard"
                     st.rerun()
-            with c2:
-                if st.button("❌ Annuler"):
-                    st.session_state.pop("confirm_del_dossier", None)
+            with x2:
+                if st.button("Annuler", key="cdel_no"):
+                    st.session_state.pop("cdel", None)
                     st.rerun()
 
         if patient.get("statut") == "traite":
-            st.markdown('<span class="badge badge-success">✓ Traitement terminé</span>', unsafe_allow_html=True)
-
+            st.markdown('<span class="badge badge-success">Traitement terminé</span>', unsafe_allow_html=True)
         if val_med == "validé":
-            st.markdown(f'<div style="background:#F0FDF4;border:1px solid #A7F3D0;border-radius:8px;padding:10px 14px;margin:8px 0;font-size:0.85rem;color:#065F46;">✅ <strong>Validé par médecin</strong> — {patient.get("validation_date","")}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="background:#F0FDF4;border:1px solid #A7F3D0;border-radius:6px;padding:8px 12px;margin:6px 0;font-size:.78rem;color:#065F46;">Validé par médecin — {patient.get("validation_date","")}</div>', unsafe_allow_html=True)
         elif val_med == "rejeté":
-            st.markdown('<div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:10px 14px;margin:8px 0;font-size:0.85rem;color:#DC2626;">❌ <strong>Décision rejetée</strong></div>', unsafe_allow_html=True)
+            st.markdown('<div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:6px;padding:8px 12px;margin:6px 0;font-size:.78rem;color:#DC2626;">Décision rejetée</div>', unsafe_allow_html=True)
 
+        # Mode modification
         if st.session_state.get("edit_mode", False):
             st.markdown("---")
-            st.markdown("### ✏️ Mode modification")
-            edit_resume = st.text_area("Résumé clinique", value=explanation.get("resume_clinique",""), height=100)
-            edit_notes = st.text_area("Notes d'orientation médecin", value=orientation.get("notes_medecin",""), height=80)
-            c1, c2 = st.columns(2)
-            with c1:
-                if st.button("💾 Enregistrer", type="primary"):
+            st.markdown('<div class="section-label">Mode modification</div>', unsafe_allow_html=True)
+            edit_resume = st.text_area("Résumé clinique", value=explanation.get("resume_clinique",""), height=90)
+            edit_notes  = st.text_area("Notes médecin",  value=med.get("notes_medecin",""), height=70)
+            x1, x2 = st.columns(2)
+            with x1:
+                if st.button("Enregistrer", type="primary"):
                     update_patient_notes(selected_id, "resume_clinique", edit_resume)
                     update_patient_notes(selected_id, "orientation_notes", edit_notes)
+                    try:
+                        import sqlite3, json as _json
+                        conn_fix = sqlite3.connect("colocare_md.db")
+                        cur_fix  = conn_fix.cursor()
+                        cur_fix.execute("SELECT donnees FROM patients WHERE id=?", (selected_id,))
+                        row = cur_fix.fetchone()
+                        if row:
+                            donnees = _json.loads(row[0])
+                            if "medical_data" in donnees:
+                                donnees["medical_data"]["notes_medecin"] = edit_notes
+                            donnees["explanation"] = {**donnees.get("explanation",{}), "resume_clinique": edit_resume}
+                            cur_fix.execute("UPDATE patients SET donnees=? WHERE id=?", (_json.dumps(donnees, ensure_ascii=False), selected_id))
+                            conn_fix.commit()
+                        conn_fix.close()
+                    except Exception as e:
+                        st.warning(f"Mise à jour partielle : {e}")
                     add_log(selected_id, "modification_medecin")
                     st.session_state.edit_mode = False
                     st.rerun()
-            with c2:
+            with x2:
                 if st.button("Annuler"):
                     st.session_state.edit_mode = False
                     st.rerun()
 
         st.divider()
 
-        st.markdown("## Timeline clinique")
-        timeline = []
-        if med.get("traitement_anterieur") not in ["aucun","inconnu",None,""]:
-            timeline.append(("🔵", f"Traitement antérieur : {med.get('traitement_anterieur')}"))
-        timeline.append(("📋", f"Analyse ColoCare MD — {patient.get('date_analyse','?')}"))
-        timeline.append(("🎯", f"Orientation : {orientation.get('decision','?')} — {orientation.get('delai','?')}"))
-        if orientation.get("rcp_requis"): timeline.append(("📋", "RCP requise"))
-        if val_med == "validé": timeline.append(("👨‍⚕️", f"Validé — {patient.get('validation_date','')}"))
-        elif val_med == "rejeté": timeline.append(("⚠️", "Décision rejetée"))
+        # Métriques
+        c1, c2, c3, c4 = st.columns(4)
+        with c1: st.metric("Score",    f"{score_data.get('score',0)}/100")
+        with c2: st.metric("TNM",      f"{med.get('stade_T','?')}{med.get('stade_N','?')}{med.get('stade_M','?')}")
+        with c3: st.metric("Stage",    orientation.get("stage_group","?"))
+        with c4: st.metric("Récidive", recurrence.get("niveau_risque","?"))
 
-        for icon, text in timeline:
-            st.markdown(f"""
-            <div style="display:flex;gap:12px;margin-bottom:12px;align-items:flex-start;">
-                <div style="width:8px;height:8px;border-radius:50%;background:#2F80ED;margin-top:6px;flex-shrink:0;"></div>
-                <div style="font-size:0.875rem;color:#525252;">{icon} {text}</div>
-            </div>
-            """, unsafe_allow_html=True)
+        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
-        st.divider()
+        # Résumé clinique
+        st.markdown('<div class="report-section"><div class="report-label">Résumé clinique</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="report-value">{explanation.get("resume_clinique","")}</div>', unsafe_allow_html=True)
+        if med.get("notes_medecin"):
+            st.markdown(f'<div style="margin-top:6px;font-size:.78rem;color:#2F80ED;"><strong>Note médecin :</strong> {med.get("notes_medecin")}</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-        st.markdown("## Tableau synthétique")
-        synth = {
-            "Paramètre": ["Stade T","Stade N","Stade M","Stage global","Score priorité","Risque récidive","Confiance IA","Métastases"],
-            "Valeur": [
-                med.get("stade_T","?"), med.get("stade_N","?"), med.get("stade_M","?"),
-                orientation.get("stage_group","?"),
-                f"{score_data.get('score',0)}/100",
-                recurrence.get("niveau_risque","?"),
-                f"{orientation.get('confidence',0)}%",
-                "OUI ⚠️" if med.get("metastases") else "NON ✅"
-            ],
-            "Statut": [
-                "✅" if med.get("stade_T","inconnu") not in ["inconnu","?",""] else "⚠️",
-                "✅" if med.get("stade_N","inconnu") not in ["inconnu","?",""] else "⚠️",
-                "✅" if med.get("stade_M","inconnu") not in ["inconnu","?",""] else "⚠️",
-                "✅","✅","✅","✅",
-                "⚠️" if med.get("metastases") else "✅"
-            ]
-        }
-        st.dataframe(pd.DataFrame(synth), use_container_width=True, hide_index=True)
-
-        st.divider()
-        st.info(explanation.get("resume_clinique",""))
-
-        col1, col2 = st.columns(2)
-        with col1:
-            niveau = score_data.get("niveau","stable")
-            if niveau == "urgent": st.error(f"🔴 URGENT — {score_data.get('delai','')}")
-            elif niveau == "semi_urgent": st.warning(f"🟠 SEMI-URGENT — {score_data.get('delai','')}")
-            else: st.success(f"🟢 STABLE — {score_data.get('delai','')}")
-        with col2:
-            decision = orientation.get("decision","")
+        # Urgence + Orientation
+        c1, c2 = st.columns(2)
+        with c1:
+            niv = score_data.get("niveau","stable")
+            if niv == "urgent":       st.error(f"URGENT — {score_data.get('delai','')}")
+            elif niv == "semi_urgent": st.warning(f"SEMI-URGENT — {score_data.get('delai','')}")
+            else:                     st.success(f"STABLE — {score_data.get('delai','')}")
+        with c2:
+            dec = orientation.get("decision","")
             box = f"**{orientation.get('specialite','')}**\n\n{orientation.get('protocole','')}\n\nDélai : {orientation.get('delai','')}"
-            if "chirurgie" in decision: st.error(box)
-            elif decision == "oncologie": st.warning(box)
-            else: st.info(box)
+            if "chirurgie" in dec: st.error(box)
+            elif dec == "oncologie": st.warning(box)
+            else:                   st.info(box)
 
-        st.markdown("## Guidelines ESMO 2023")
+        # ESMO
+        from modules.rules_engine import get_esmo_guideline
         esmo = get_esmo_guideline(orientation.get("stage_group","Stage inconnu"))
-        st.markdown(f"""
-        <div style="background:#EFF6FF;border-left:4px solid #2F80ED;border-radius:0 8px 8px 0;padding:16px 20px;">
-            <div style="font-weight:600;color:#181D27;margin-bottom:8px;">{esmo['reference']}</div>
-            <div style="font-size:0.875rem;color:#525252;line-height:1.8;">
-                <strong>Chimio :</strong> {esmo['recommandation_chimio']}<br>
-                <strong>Survie 5 ans :</strong> {esmo['survie_5ans']}<br>
-                <strong>Surveillance :</strong> {esmo['surveillance']}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f'<div class="esmo-block"><strong>ESMO {esmo["reference"]}</strong><br>Chimio : {esmo["recommandation_chimio"]}<br>Survie 5 ans : {esmo["survie_5ans"]}</div>', unsafe_allow_html=True)
 
-        st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
-        st.markdown("## Raisonnement clinique")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("**Preuves :**")
-            for p in explanation.get("preuves_dossier",[]): st.markdown(f"✓ {p}")
-        with col2:
-            st.markdown("**Règles :**")
-            for r in explanation.get("regles_activees",[]): st.markdown(f"⚖️ {r}")
-            st.markdown(f"**Raison :** {explanation.get('raison_principale','')}")
+        # Explainability
+        st.markdown('<div class="report-section"><div class="report-label">Raisonnement clinique</div>', unsafe_allow_html=True)
+        c1, c2 = st.columns(2)
+        with c1:
+            st.markdown('<div style="font-size:.72rem;font-weight:600;color:#8A8A8A;margin-bottom:4px;">Preuves</div>', unsafe_allow_html=True)
+            for p in explanation.get("preuves_dossier",[]): st.markdown(f'<div style="font-size:.82rem;color:#525252;">· {p}</div>', unsafe_allow_html=True)
+        with c2:
+            st.markdown('<div style="font-size:.72rem;font-weight:600;color:#8A8A8A;margin-bottom:4px;">Règles activées</div>', unsafe_allow_html=True)
+            for r in explanation.get("regles_activees",[]): st.markdown(f'<div style="font-size:.82rem;color:#525252;">· {r}</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
+        # Timeline
+        st.markdown('<div class="section-label">Timeline</div>', unsafe_allow_html=True)
+        tl = []
+        if med.get("traitement_anterieur") not in ["aucun","inconnu",None,""]:
+            tl.append(f"Traitement antérieur : {med.get('traitement_anterieur')}")
+        tl.append(f"Analyse — {patient.get('date_analyse','?')}")
+        tl.append(f"Orientation : {orientation.get('decision','?')} — {orientation.get('delai','?')}")
+        if val_med == "validé": tl.append(f"Validé — {patient.get('validation_date','')}")
+        elif val_med == "rejeté": tl.append("Décision rejetée")
+        for tx in tl:
+            st.markdown(f'<div style="display:flex;gap:8px;margin-bottom:7px;align-items:flex-start;font-size:.82rem;color:#525252;"><div style="width:6px;height:6px;border-radius:50%;background:#2F80ED;margin-top:5px;flex-shrink:0;"></div>{tx}</div>', unsafe_allow_html=True)
+
+        # RCP
         st.divider()
-        st.markdown("## Résumé RCP")
-        st.markdown('<div style="font-size:0.85rem;color:#525252;margin-bottom:16px;">Assistant préparatoire à la Réunion de Concertation Pluridisciplinaire.</div>', unsafe_allow_html=True)
-
-        if st.button("🏥 Générer résumé RCP", type="primary"):
-            ctx_rcp = f"Patient {patient['nom']}, stade {med.get('stade_T','?')}{med.get('stade_N','?')}{med.get('stade_M','?')}, {orientation.get('stage_group','?')}, score {score_data.get('score',0)}/100"
+        st.markdown('<div class="section-label">Résumé RCP</div>', unsafe_allow_html=True)
+        if st.button("Générer résumé RCP", type="primary", key="gen_rcp"):
+            ctx_r = f"Patient {patient['nom']}, {med.get('stade_T','?')}{med.get('stade_N','?')}{med.get('stade_M','?')}, {orientation.get('stage_group','?')}, score {score_data.get('score',0)}/100"
             with st.spinner("Génération..."):
-                rcp = ask_gemma(f"""Génère un résumé RCP complet oncologie colorectale.
-Données : {ctx_rcp}. Type : {med.get('type_histologique','?')}. Métastases : {med.get('localisation_metastases','aucune')}.
-Format : ## 1. Présentation ## 2. Données clés ## 3. Question RCP ## 4. Spécialistes ## 5. Examens ## 6. Recommandation ESMO""")
+                rcp = ask_gemma(f"""Génère un résumé RCP oncologie colorectale.
+Données : {ctx_r}. Type : {med.get('type_histologique','?')}. Métastases : {med.get('localisation_metastases','aucune')}.
+## 1. Présentation ## 2. Données clés ## 3. Question RCP ## 4. Spécialistes ## 5. Examens ## 6. Recommandation ESMO""")
             st.markdown(rcp)
-            st.download_button("⬇️ RCP", data=rcp, file_name=f"rcp_{patient['nom']}.txt", mime="text/plain")
+            st.download_button("Télécharger RCP", data=rcp, file_name=f"rcp_{patient['nom']}.txt", mime="text/plain")
 
+        # Validation dossier
         if val_med == "en_attente":
             st.divider()
-            st.markdown("## Validation médecin")
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                if st.button("✅ Valider décision", type="primary"):
+            st.markdown('<div class="section-label">Validation médecin</div>', unsafe_allow_html=True)
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                if st.button("Valider la décision", type="primary", key="val_dos2"):
                     update_validation_medecin(selected_id, "validé")
                     add_log(selected_id, "validation", "validé")
                     st.rerun()
-            with col2:
-                if st.button("❌ Rejeter"):
+            with c2:
+                if st.button("Rejeter", key="rej_dos2"):
                     update_validation_medecin(selected_id, "rejeté")
                     add_log(selected_id, "validation", "rejeté")
                     st.rerun()
-            with col3:
-                if st.button("✅ Marquer traité"):
+            with c3:
+                if st.button("Marquer traité", key="trt_dos2"):
                     update_patient_status(selected_id, "traite")
                     add_log(selected_id, "statut", "traite")
                     st.rerun()
 
-    # ════════════════════════════════
-    # ASSISTANT CLINIQUE
-    # ════════════════════════════════
     elif st.session_state.app_page == "assistant":
+
+        # Fix critique : forcer le offset du contenu principal
+        # quand sidebar est position:fixed
+        st.markdown(
+            '<div id="assistant-fix"></div>'
+            '<style>'
+            '#assistant-fix ~ * { margin-left: 0 !important; }'
+            'section[data-testid="stMain"] {'
+            '    margin-left: 220px !important;'
+            '    padding-left: 0 !important;'
+            '}'
+            '</style>',
+            unsafe_allow_html=True
+        )
 
         all_p = get_all_patients()
         patient_opts = {"Aucun patient (général)": None}
@@ -1914,8 +2369,8 @@ Format : ## 1. Présentation ## 2. Données clés ## 3. Question RCP ## 4. Spéc
         })
 
         sel_label = st.selectbox("Contexte patient", list(patient_opts.keys()))
-        sel_id = patient_opts[sel_label]
-        ctx = "Aucun patient — réponses génériques."
+        sel_id    = patient_opts[sel_label]
+        ctx       = "Aucun patient — réponses génériques."
 
         if sel_id:
             p = get_patient_by_id(sel_id)
@@ -1940,7 +2395,7 @@ Format : ## 1. Présentation ## 2. Données clés ## 3. Question RCP ## 4. Spéc
             if st.button("📋 Générer résumé RCP rapide"):
                 with st.spinner("Génération RCP..."):
                     rcp = ask_gemma_with_context(
-                        f"Génère résumé RCP court : présentation, éléments clés, question RCP, spécialistes.",
+                        "Génère résumé RCP court : présentation, éléments clés, question RCP, spécialistes.",
                         ctx, st.session_state.langue
                     )
                 st.markdown(rcp)
@@ -1954,7 +2409,7 @@ Format : ## 1. Présentation ## 2. Données clés ## 3. Question RCP ## 4. Spéc
                 st.markdown(question)
             with st.chat_message("assistant"):
                 with st.spinner("Analyse..."):
-                    hist = get_context_summary(st.session_state.conversation)
+                    hist     = get_context_summary(st.session_state.conversation)
                     response = ask_gemma_with_context(question, f"{ctx}\n\nHistorique:\n{hist}", st.session_state.langue)
                 st.markdown(response)
             add_message(st.session_state.conversation, "assistant", response)

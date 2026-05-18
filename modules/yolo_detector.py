@@ -1,5 +1,5 @@
 # modules/yolo_detector.py
-# Détection YOLO + rapport Gemma 4 — ColoCare Vision Lab intégré
+# Détection YOLO + rapport Gemma 4 
 
 import os
 import json
