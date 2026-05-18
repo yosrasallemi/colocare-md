@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+venv/
+.env
+
+# Build
+dist/
+build/
+
+# Exclude large datasets only
+datasets/
+
+# Large models
+*.pt
+*.gguf
+*.bin
+*.ckpt
+*.safetensors
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Temporary
+temp*
+*.tmp
+
+# VSCode
+.vscode/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Patient databases
+*.db

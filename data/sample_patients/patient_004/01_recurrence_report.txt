@@ -1,0 +1,17 @@
+ONCOLOGY REPORT — SUSPECTED RECURRENCE
+Patient: Female, 67 years | Date: 2024-06-15
+Previous: Sigmoid colon adenocarcinoma T3N2M0 — treated 2022
+HISTORY: pT3N2aM0 treated with laparoscopic sigmoidectomy + FOLFOX x12 cycles.
+Declared disease-free December 2022.
+CT SCAN FINDINGS:
+- Previous anastomosis: Thickening suspicious — 2.8 cm lesion
+- Liver: 2 new lesions (1.2 cm right lobe, 0.8 cm left lobe)
+- Peritoneum: 2-3 small nodules suspicious peritoneal carcinomatosis
+CEA: 45.6 ng/mL (was 2.8 ng/mL — significant rise). CA19-9: 89 U/mL.
+BIOPSY: Metastatic adenocarcinoma. KRAS: Mutant (G12D).
+STAGING: Recurrent colorectal cancer, Stage IV — T_recurrence N2 M1b
+COMPLICATIONS: Peritoneal carcinomatosis suspected.
+Prior treatment: FOLFOX x12 cycles (completed 2022).
+MULTIDISCIPLINARY DISCUSSION REQUIRED — URGENT RCP
+Decision pending: FOLFIRI + Bevacizumab vs clinical trial.
+HIPEC eligibility evaluation needed.

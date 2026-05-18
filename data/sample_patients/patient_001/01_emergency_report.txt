@@ -1,0 +1,10 @@
+EMERGENCY ROOM REPORT
+Date: 2024-03-15 | Department: Emergency Surgery
+Patient: Male, 62 years old
+Chief Complaint: Severe abdominal pain 3 days, rectal bleeding, inability to pass stool.
+Vital Signs: BP 110/70, HR 98, Temp 37.8C
+CT Scan Emergency: Large obstructing mass in sigmoid colon. Partial large bowel obstruction.
+No free air. No distant metastases.
+CEA: 18.5 ng/mL (elevated). CA19-9: 45 U/mL (elevated).
+Clinical Impression: Suspected sigmoid colon cancer with partial bowel obstruction. High urgency.
+Plan: Emergency surgical consultation. NPO. IV fluids. Bowel decompression.

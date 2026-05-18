@@ -1,0 +1,14 @@
+ONCOLOGY CONSULTATION REPORT
+Patient: Female, 58 years | Date: 2024-04-10
+TUMOR ASSESSMENT:
+Primary: Large mass ascending colon 6.2 x 4.8 cm
+Histology: Moderately differentiated adenocarcinoma
+Molecular: KRAS wild-type, BRAF wild-type
+STAGING CT SCAN:
+- Primary tumor: Ascending colon, 6.2 cm, T4a
+- Regional lymph nodes: Multiple enlarged N2b (>4 nodes)
+- Liver metastases: Multiple bilateral, largest 3.5 cm — M1a
+FINAL STAGING: T4aN2bM1a — Stage IV (metastatic colorectal cancer)
+CEA: 245 ng/mL. CA19-9: 180 U/mL.
+TREATMENT PLAN: FOLFOX + Bevacizumab first-line.
+PROGNOSIS: Stage IV. Median OS 24-30 months with modern chemotherapy.

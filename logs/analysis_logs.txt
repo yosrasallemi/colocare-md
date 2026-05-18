@@ -1,0 +1,5 @@
+{"date": "2026-05-10 01:06:47", "fichier": "Breast metastasis from colorectal cancer treated by multimodal therapy.pdf", "score": 62, "stage": "Stage IV", "decision": "chirurgie_urgente", "confidence": 95}
+{"date": "2026-05-10 01:08:46", "fichier": "colonoscopy_004.txt", "score": 0, "stage": "Stage inconnu", "decision": "incertain", "confidence": 55}
+{"date": "2026-05-12 00:59:50", "fichiers": ["Colorectal Cancer in Adolescence.pdf"], "score": 40, "stage": "Stage IV", "decision": "oncologie", "confidence": 88, "cancer_confirme": "non_confirme"}
+{"date": "2026-05-12 01:48:57", "fichiers": ["discharge_1.txt", "radiology_1.txt"], "score": 42, "stage": "Stage IV", "decision": "oncologie", "confidence": 88, "cancer_confirme": "confirme"}
+{"date": "2026-05-12 01:49:48", "fichiers": ["discharge_1.txt", "radiology_1.txt"], "score": 50, "stage": "Stage IV", "decision": "oncologie", "confidence": 88, "cancer_confirme": "confirme"}

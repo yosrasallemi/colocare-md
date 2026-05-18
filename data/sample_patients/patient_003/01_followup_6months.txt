@@ -1,0 +1,11 @@
+POST-OPERATIVE FOLLOW-UP REPORT — 6 MONTHS
+Patient: Male, 55 years | Date: 2024-05-20
+ORIGINAL DIAGNOSIS: Ascending colon adenocarcinoma, well differentiated, pT2N0M0, Stage I
+Surgery: Right hemicolectomy — January 2024
+PATHOLOGY: pT2N0M0 — well differentiated. 0 of 22 lymph nodes positive. MSI-H.
+SURVEILLANCE RESULTS:
+CT Abdomen/Pelvis: No evidence of recurrence or metastatic disease.
+CEA: 2.1 ng/mL (normal). CA19-9: 12 U/mL (normal).
+ASSESSMENT: Complete remission. No evidence of disease at 6 months.
+Estimated 5-year disease-free survival: >90%.
+FOLLOW-UP: CT every 6 months. CEA every 3 months. Colonoscopy at 1 year.

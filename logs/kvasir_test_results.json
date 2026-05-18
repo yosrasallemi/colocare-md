@@ -1,0 +1,169 @@
+{
+  "total_images": 20,
+  "polypes_detectes": 7,
+  "taux_detection": "35.0%",
+  "erreurs": 0,
+  "taux_erreur": "0.0%",
+  "resultats": [
+    {
+      "image": "cju0qkwl35piu0993l0dewei2.jpg",
+      "polype_detecte": false,
+      "gravite": "normale",
+      "recommandation": "surveillance",
+      "conservative_mode": false,
+      "status": "success"
+    },
+    {
+      "image": "cju0qoxqj9q6s0835b43399p4.jpg",
+      "polype_detecte": false,
+      "gravite": "normale",
+      "recommandation": "normal",
+      "conservative_mode": false,
+      "status": "success"
+    },
+    {
+      "image": "cju0qx73cjw570799j4n5cjze.jpg",
+      "polype_detecte": true,
+      "gravite": "suspecte",
+      "recommandation": "⚠️ Lésion suspecte — Validation humaine obligatoire. Avis gastroentérologue requis.",
+      "conservative_mode": true,
+      "status": "success"
+    },
+    {
+      "image": "cju0roawvklrq0799vmjorwfv.jpg",
+      "polype_detecte": true,
+      "gravite": "suspecte",
+      "recommandation": "⚠️ Lésion suspecte — Validation humaine obligatoire. Avis gastroentérologue requis.",
+      "conservative_mode": true,
+      "status": "success"
+    },
+    {
+      "image": "cju0rx1idathl0835detmsp84.jpg",
+      "polype_detecte": false,
+      "gravite": "normale",
+      "recommandation": "normal",
+      "conservative_mode": false,
+      "status": "success"
+    },
+    {
+      "image": "cju0s2a9ekvms080138tjjpxr.jpg",
+      "polype_detecte": false,
+      "gravite": "normale",
+      "recommandation": "normal",
+      "conservative_mode": false,
+      "status": "success"
+    },
+    {
+      "image": "cju0s690hkp960855tjuaqvv0.jpg",
+      "polype_detecte": false,
+      "gravite": "normale",
+      "recommandation": "surveillance",
+      "conservative_mode": false,
+      "status": "success"
+    },
+    {
+      "image": "cju0sr5ghl0nd08789uzf1raf.jpg",
+      "polype_detecte": true,
+      "gravite": "suspecte",
+      "recommandation": "⚠️ Lésion suspecte — Validation humaine obligatoire. Avis gastroentérologue requis.",
+      "conservative_mode": true,
+      "status": "success"
+    },
+    {
+      "image": "cju0sxqiclckk08551ycbwhno.jpg",
+      "polype_detecte": false,
+      "gravite": "normale",
+      "recommandation": "normal",
+      "conservative_mode": false,
+      "status": "success"
+    },
+    {
+      "image": "cju0t4oil7vzk099370nun5h9.jpg",
+      "polype_detecte": false,
+      "gravite": "normale",
+      "recommandation": "normal",
+      "conservative_mode": false,
+      "status": "success"
+    },
+    {
+      "image": "cju0tl3uz8blh0993wxvn7ly3.jpg",
+      "polype_detecte": false,
+      "gravite": "normale",
+      "recommandation": "normal",
+      "conservative_mode": false,
+      "status": "success"
+    },
+    {
+      "image": "cju0u2g7pmnux0801vkk47ivj.jpg",
+      "polype_detecte": true,
+      "gravite": "suspecte",
+      "recommandation": "⚠️ Lésion suspecte — Validation humaine obligatoire. Avis gastroentérologue requis.",
+      "conservative_mode": true,
+      "status": "success"
+    },
+    {
+      "image": "cju0u82z3cuma0835wlxrnrjv.jpg",
+      "polype_detecte": true,
+      "gravite": "suspecte",
+      "recommandation": "⚠️ Lésion suspecte — Validation humaine obligatoire. Avis gastroentérologue requis.",
+      "conservative_mode": true,
+      "status": "success"
+    },
+    {
+      "image": "cju0ue769mxii08019zqgdbxn.jpg",
+      "polype_detecte": false,
+      "gravite": "normale",
+      "recommandation": "normal",
+      "conservative_mode": false,
+      "status": "success"
+    },
+    {
+      "image": "cju0vtox5ain6099360pu62rp.jpg",
+      "polype_detecte": false,
+      "gravite": "normale",
+      "recommandation": "normal",
+      "conservative_mode": false,
+      "status": "success"
+    },
+    {
+      "image": "cju13cgqmnhwn0988yrainhcp.jpg",
+      "polype_detecte": true,
+      "gravite": "suspecte",
+      "recommandation": "⚠️ Lésion suspecte — Validation humaine obligatoire. Avis gastroentérologue requis.",
+      "conservative_mode": true,
+      "status": "success"
+    },
+    {
+      "image": "cju13fwthn9mq0835gacxgy01.jpg",
+      "polype_detecte": true,
+      "gravite": "suspecte",
+      "recommandation": "⚠️ Lésion suspecte — Validation humaine obligatoire. Avis gastroentérologue requis.",
+      "conservative_mode": true,
+      "status": "success"
+    },
+    {
+      "image": "cju13hp5rnbjx0835bf0jowgx.jpg",
+      "polype_detecte": false,
+      "gravite": "normale",
+      "recommandation": "normal",
+      "conservative_mode": false,
+      "status": "success"
+    },
+    {
+      "image": "cju14g8o4xui30878gkgbrvqj.jpg",
+      "polype_detecte": false,
+      "gravite": "suspecte",
+      "recommandation": "⚠️ Lésion suspecte — Validation humaine obligatoire. Avis gastroentérologue requis.",
+      "conservative_mode": true,
+      "status": "success"
+    },
+    {
+      "image": "cju14hjh2ob2o0835ouz3r5aa.jpg",
+      "polype_detecte": false,
+      "gravite": "normale",
+      "recommandation": "normal",
+      "conservative_mode": false,
+      "status": "success"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+SURGICAL PATHOLOGY REPORT
+Specimen: Sigmoid colon resection
+Patient: Male, 62 years | Date: 2024-03-17
+MICROSCOPIC DESCRIPTION:
+Moderately differentiated adenocarcinoma (Grade 2).
+Tumor invades through muscularis propria into pericolorectal tissues.
+Lymphovascular invasion: PRESENT.
+TUMOR STAGING (AJCC/UICC 8th Edition):
+Primary tumor (pT): pT3
+Regional lymph nodes (pN): pN1a — 1 of 18 lymph nodes positive
+Distant metastasis (pM): M0
+OVERALL STAGE: Stage IIIA (pT3N1aM0)
+MSI Status: pMMR. KRAS: Wild-type. BRAF: Wild-type.
+CONCLUSION: Moderately differentiated sigmoid colon adenocarcinoma, pT3N1aM0, Stage IIIA.
+Complete resection (R0). Recommend adjuvant chemotherapy discussion.

@@ -1,0 +1,7 @@
+DISCHARGE SUMMARY
+Patient: Male, 62 years | Admission: 2024-03-15 | Discharge: 2024-03-24
+PRINCIPAL DIAGNOSIS: Sigmoid colon adenocarcinoma, pT3N1aM0, Stage IIIA
+ADJUVANT TREATMENT PLAN: FOLFOX chemotherapy x12 cycles (6 months).
+CEA at discharge: 6.2 ng/mL (improving from 18.5).
+FOLLOW-UP: Oncology visit 2 weeks. CT every 6 months. CEA every 3 months.
+PROGNOSIS: Stage IIIA with adjuvant chemotherapy — 5-year survival approximately 65%.

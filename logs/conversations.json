@@ -1,0 +1,52 @@
+{
+  "20260512_013816": {
+    "id": "20260512_013816",
+    "titre": "FOLFOX est une combinaison de deux chimiothér...",
+    "date": "12/05/2026 01:38",
+    "messages": [
+      {
+        "role": "user",
+        "content": "What is FOLFOX? ",
+        "timestamp": "01:38"
+      },
+      {
+        "role": "assistant",
+        "content": "FOLFOX est une combinaison de deux chimiothérapies : le fluorouracile (5-FU) et la leucovorin, administrés avec de l'oxaliplatine. Elle est fréquemment utilisée dans le traitement du cancer colorectal avancé ou métastatique, ainsi que comme chimiothérapie adjuvante après la résection chirurgicale pour réduire le risque de récidive.\n\n*   **5-FU** est un analogue pyrimidique qui inhibe la synthèse de l'ADN.\n*   **Leucovorin** est la forme lévurée du folinate, un cofacteur nécessaire à l'activité du 5-FU.\n*   **Oxaliplatine** est un agent de réticulation de l'ADN.\n\n*Il est important de noter que cette combinaison est prescrite et administrée uniquement sous la supervision d'un oncologue et après une évaluation approfondie du patient.*\n",
+        "timestamp": "01:38"
+      }
+    ],
+    "contexte_patient": null
+  },
+  "20260512_013847": {
+    "id": "20260512_013847",
+    "titre": "Je suis spécialisé uniquement en oncologie co...",
+    "date": "12/05/2026 01:38",
+    "messages": [
+      {
+        "role": "user",
+        "content": "dans le contexte de neurologie explique moi l'AVC",
+        "timestamp": "01:39"
+      },
+      {
+        "role": "assistant",
+        "content": "Je suis spécialisé uniquement en oncologie colorectale. \n\nL'AVC (Accident Vasculaire Cérébral) est un événement neurologique causé par une interruption temporaire ou permanente de l'apport sanguin au cerveau. Il peut être dû à un arrêt d'un vaisseau sanguin (hémorragie) ou à un blocage (ischémie). \n\nIl est hors de mon champ de spécialité de vous détailler les aspects neurologiques de l'AVC. \n\nNéanmoins, je peux vous informer que certaines complications de cancers colorectaux, notamment liées à la chimiothérapie ou à des métastases cérébrales, peuvent présenter des symptômes neurologiques qui pourraient être interprétés à tort comme un AVC. \n\n**Il est important de noter que cette information est donnée à titre indicatif et ne remplace pas l'avis d'un neurologue.**\n",
+        "timestamp": "01:39"
+      }
+    ],
+    "contexte_patient": null
+  },
+  "20260513_004838": {
+    "id": "20260513_004838",
+    "titre": "Nouvelle discussion",
+    "date": "13/05/2026 00:48",
+    "messages": [],
+    "contexte_patient": null
+  },
+  "20260513_005413": {
+    "id": "20260513_005413",
+    "titre": "Nouvelle discussion",
+    "date": "13/05/2026 00:54",
+    "messages": [],
+    "contexte_patient": "Aucun patient sélectionné — réponses génériques en oncologie colorectale."
+  }
+}
