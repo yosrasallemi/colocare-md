@@ -122,7 +122,7 @@ Interface designed in **Figma** before implementation.
 
 - Landing Page
 
- ![Landing](assets/images/readme/figma_home.png)
+![Landing](assets/images/readme/figma_home.png)
 
 - À propos
 ![About](assets/images/readme/figma_about.png)
