@@ -125,7 +125,7 @@ Interface designed in **Figma** before implementation.
 ![Landing](assets/images/readme/figma_home.png)
 
 - À propos
-![About](assets/images/readme/figma_about.png)
+![About](assets/images/readme/figma_About.png)
 
 - Guide
 ![Guide](assets/images/readme/figma_guide.png)
@@ -164,23 +164,22 @@ Streamlit, PyMuPDF, Plotly, Ultralytics
 
 colocare-md :
 
-├── app.py                     # Main application
-├── models/
-│   └── best.pt                # YOLO trained model
-├── modules/
-│   ├── gemma_client.py        # Gemma 4 integration
-│   ├── pipeline.py            # 3-scenario pipeline
-│   ├── yolo_detector.py       # YOLO + Gemma vision
-│   ├── pdf_reader.py          # PDF extraction
-│   ├── json_extractor.py      # Structured extraction
-│   ├── rules_engine.py        # ESMO clinical rules
-│   ├── scoring.py             # Priority scoring
-│   ├── explainability.py      # AI explainability
-│   ├── diagnosis_validator.py # Diagnosis validation
-│   ├── prognosis_engine.py    # Recurrence risk
-│   ├── multimodal_fusion.py   # Text + image fusion
-│   ├── database.py            # SQLite local DB
-│   └── conversation_memory.py # Chat history
+ app.py  -> # Main application
+ models/ best.pt -> YOLO trained model
+modules/
+-  gemma_client.py        # Gemma 4 integration
+-  pipeline.py            # 3-scenario pipeline
+-  yolo_detector.py       # YOLO + Gemma vision
+-  pdf_reader.py          # PDF extraction
+-  json_extractor.py      # Structured extraction
+-  rules_engine.py        # ESMO clinical rules
+-  scoring.py             # Priority scoring
+-  explainability.py      # AI explainability
+-  diagnosis_validator.py # Diagnosis validation
+-  prognosis_engine.py    # Recurrence risk
+-  multimodal_fusion.py   # Text + image fusion
+-  database.py            # SQLite local DB
+-  conversation_memory.py # Chat history
 
 
 📚 Datasets
