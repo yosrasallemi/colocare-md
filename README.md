@@ -124,8 +124,9 @@ Interface designed in **Figma** before implementation.
 
 ![Landing](assets/images/readme/figma_home.png)
 
-- À propos
-![About](assets/images/readme/figma_About.png)
+- About
+
+![About](assets/images/readme/figma_about.png) 
 
 - Guide
 ![Guide](assets/images/readme/figma_guide.png)
