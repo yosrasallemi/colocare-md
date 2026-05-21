@@ -1160,6 +1160,7 @@ html, body {{ margin: 0; padding: 0; font-family: 'Poppins', sans-serif; backgro
 </html>"""
 
     components.html(guide_html, height=2800, scrolling=True)
+
 #-------- Assistant clinique ----------------# 
 
 
@@ -1461,20 +1462,21 @@ elif st.session_state.current_page == "app":
         icon_dossier = _icon("dossier.png", 16, 16, "margin-right:8px;opacity:.65;")
 
         # ── Home ──────────────────────────────────────────────
+        # ── Home ─────────────────────────────
+
         is_home = st.session_state.app_page == "dashboard"
-        home_bg = "background:#EEF5FD;border-radius:7px;" if is_home else ""
-        home_c  = "color:#2F80ED;font-weight:500;" if is_home else "color:#1A1A2E;font-weight:400;"
-        st.markdown(f"""
-        <div style="position:relative;padding:0 10px;margin-bottom:2px;">
-            <div style="display:flex;align-items:center;padding:8px 10px;{home_bg}border-radius:7px;cursor:pointer;">
-                {icon_home}
-                <span style="font-family:'Inter',sans-serif;font-size:.855rem;{home_c}">Home</span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        if st.button("", key="nav_dashboard_real",use_container_width=True ):
-          st.session_state.app_page="dashboard"
-          st.rerun()
+
+        label = "🏠 Home"
+        if is_home:
+          label = "🏠 Home"
+
+        if st.button(
+         label,
+         key="nav_dashboard_real",
+        use_container_width=True
+        ):
+         st.session_state.app_page = "dashboard"
+         st.rerun()
 
 
         # ── Dossier patient ────────────────────────────────────
